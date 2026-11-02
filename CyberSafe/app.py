@@ -17,7 +17,10 @@ from flask import Flask, abort, flash, g, redirect, render_template, request, se
 from werkzeug.security import check_password_hash, generate_password_hash
 
 ROOT = Path(__file__).resolve().parent
-DATABASE = Path(os.environ.get("CYBERSAFE_DATABASE", ROOT / "cybersafe.sqlite3"))
+IS_VERCEL = bool(os.environ.get("VERCEL"))
+# Vercel's serverless filesystem is read-only except for /tmp.
+DEFAULT_DATABASE = Path("/tmp/cybersafe.sqlite3") if IS_VERCEL else ROOT / "cybersafe.sqlite3"
+DATABASE = Path(os.environ.get("CYBERSAFE_DATABASE", DEFAULT_DATABASE))
 FAILURES = defaultdict(deque)
 FAILURES_LOCK = threading.Lock()
 QUIZ_LOGIN_MESSAGE = (
@@ -193,14 +196,22 @@ def initialize_database(database=DATABASE):
 def create_app():
     app = Flask(__name__)
     secret_key = os.environ.get("SECRET_KEY") or os.environ.get("FLASK_SECRET_KEY")
-    if not secret_key and os.environ.get("VERCEL"):
-        raise RuntimeError("Set SECRET_KEY in the Vercel environment variables.")
+    if not secret_key:
+        # Fall back to a per-process key so the app still starts instead of
+        # crashing with FUNCTION_INVOCATION_FAILED. Set SECRET_KEY in the
+        # Vercel project settings to keep sessions stable across cold starts.
+        secret_key = secrets.token_hex(32)
+        if IS_VERCEL:
+            app.logger.warning(
+                "SECRET_KEY is not set. Using a random key; users will be logged "
+                "out on each cold start. Set SECRET_KEY in the Vercel environment."
+            )
     app.config.update(
-        SECRET_KEY=secret_key or secrets.token_hex(32),
+        SECRET_KEY=secret_key,
         PERMANENT_SESSION_LIFETIME=timedelta(days=14),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
-        SESSION_COOKIE_SECURE=os.environ.get("VERCEL", "").lower() in {"1", "true"},
+        SESSION_COOKIE_SECURE=IS_VERCEL,
     )
     initialize_database()
 
