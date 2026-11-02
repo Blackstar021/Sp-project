@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Admin panel | CyberSafe{% endblock %}
+{% block head %}
+<style>
+  .admin-section { margin:28px 0; padding:22px; border:1px solid #28313f; border-radius:17px; background:#10151f; }
+  details.editor { margin:12px 0; padding:16px; border:1px solid #303948; border-radius:13px; background:#0c111a; }
+  details.editor summary { cursor:pointer; color:#f4f7fb; font-weight:700; }
+  .manage-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:12px; }
+  .table-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; text-align:left; }
+  th,td { padding:10px; border-bottom:1px solid #303948; color:#c3ccd8; }
+</style>
+{% endblock %}
+{% block content %}
+<span class="eyebrow">Content management</span><h1>Administrator panel</h1>
+<p class="lead">Manage learning modules, tips, quiz questions, and student accounts.</p>
+
+<section class="admin-section">
+  <h2>Registered users</h2><p><a class="button secondary" href="{{ url_for('admin_users') }}">Manage users</a></p>
+  <div class="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Created</th></tr></thead><tbody>
+  {% for account in users %}<tr><td>{{ account.name }}</td><td>{{ account.email }}</td><td>{{ account.role|title }}</td><td>{{ account.created_at }}</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+
+<section class="admin-section">
+  <h2>Learning modules</h2><p class="small">Examples and takeaways use one item per line. Leave slug blank to generate it from title.</p>
+  <details class="editor"><summary>Add a learning module</summary>
+    <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="module_save">
+      <label class="field">URL slug (optional)<input name="slug" placeholder="generated from title"></label>
+      <label class="field">Title<input name="title" maxlength="120" required></label>
+      <label class="field">Description<input name="summary" maxlength="500" required></label>
+      <label class="field">Lesson<textarea name="lesson" required></textarea></label>
+      <div class="manage-grid"><label class="field">Examples<textarea name="examples"></textarea></label><label class="field">Key takeaways<textarea name="takeaways"></textarea></label></div>
+      <button type="submit">Add module</button>
+    </form>
+  </details>
+  {% for item in modules %}
+  <details class="editor"><summary>Edit {{ item.title }} ({{ item.question_count }} questions)</summary>
+    <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="module_save"><input type="hidden" name="id" value="{{ item.id }}">
+      <label class="field">URL slug<input name="slug" value="{{ item.slug }}" required></label>
+      <label class="field">Title<input name="title" maxlength="120" value="{{ item.title }}" required></label>
+      <label class="field">Description<input name="summary" maxlength="500" value="{{ item.summary }}" required></label>
+      <label class="field">Lesson<textarea name="lesson" required>{{ item.lesson }}</textarea></label>
+      <div class="manage-grid"><label class="field">Examples<textarea name="examples">{{ item.examples|join('\n') }}</textarea></label><label class="field">Key takeaways<textarea name="takeaways">{{ item.takeaways|join('\n') }}</textarea></label></div>
+      <button type="submit">Save module</button>
+    </form>
+    <form method="post" onsubmit="return confirm('Delete this module and its quiz history?')"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="module_delete"><input type="hidden" name="id" value="{{ item.id }}"><button class="danger" type="submit">Delete module</button></form>
+  </details>
+  {% endfor %}
+</section>
+
+<section class="admin-section">
+  <h2>Online safety tips</h2>
+  <details class="editor"><summary>Add a tip</summary><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="tip_save">
+    <label class="field">Category<input name="category" required></label><label class="field">Tip<input name="content" required></label><button type="submit">Add tip</button>
+  </form></details>
+  {% for tip in tips %}<details class="editor"><summary>{{ tip.category }}: {{ tip.content }}</summary>
+    <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="tip_save"><input type="hidden" name="id" value="{{ tip.id }}">
+      <label class="field">Category<input name="category" value="{{ tip.category }}" required></label><label class="field">Tip<input name="content" value="{{ tip.content }}" required></label><button type="submit">Save tip</button>
+    </form>
+    <form method="post" onsubmit="return confirm('Delete this tip?')"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="tip_delete"><input type="hidden" name="id" value="{{ tip.id }}"><button class="danger" type="submit">Delete tip</button></form>
+  </details>{% endfor %}
+</section>
+
+<section class="admin-section">
+  <h2>Quiz questions</h2>
+  <details class="editor"><summary>Add a question</summary>
+    <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="question_save">
+      <label class="field">Module<select name="module_id">{% for item in modules %}<option value="{{ item.id }}">{{ item.title }}</option>{% endfor %}</select></label>
+      <label class="field">Question<textarea name="prompt" required></textarea></label>
+      {% for i in range(4) %}<label class="field">Answer {{ i + 1 }}<input name="option_{{ i }}" required></label>{% endfor %}
+      <label class="field">Correct answer<select name="answer">{% for i in range(4) %}<option value="{{ i }}">Answer {{ i + 1 }}</option>{% endfor %}</select></label>
+      <label class="field">Explanation<textarea name="explanation" required></textarea></label><button type="submit">Add question</button>
+    </form>
+  </details>
+  {% for q in questions %}<details class="editor"><summary>{{ q.module_title }}: {{ q.prompt }}</summary>
+    <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="question_save"><input type="hidden" name="id" value="{{ q.id }}">
+      <label class="field">Module<select name="module_id">{% for item in modules %}<option value="{{ item.id }}" {% if item.id == q.module_id %}selected{% endif %}>{{ item.title }}</option>{% endfor %}</select></label>
+      <label class="field">Question<textarea name="prompt" required>{{ q.prompt }}</textarea></label>
+      {% for i in range(4) %}<label class="field">Answer {{ i + 1 }}<input name="option_{{ i }}" value="{{ q.options[i] }}" required></label>{% endfor %}
+      <label class="field">Correct answer<select name="answer">{% for i in range(4) %}<option value="{{ i }}" {% if i == q.answer %}selected{% endif %}>Answer {{ i + 1 }}</option>{% endfor %}</select></label>
+      <label class="field">Explanation<textarea name="explanation" required>{{ q.explanation }}</textarea></label><button type="submit">Save question</button>
+    </form>
+    <form method="post" onsubmit="return confirm('Delete this question?')"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="question_delete"><input type="hidden" name="id" value="{{ q.id }}"><button class="danger" type="submit">Delete question</button></form>
+  </details>{% endfor %}
+</section>
+{% endblock %}

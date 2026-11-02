@@ -1,328 +1,72 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <title>Log In | CyberSafe</title>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark">
+  <title>Log in | CyberSafe</title>
   <style>
-    :root {
-      color-scheme: dark;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #080b12;
-      color: #f4f7fb;
-      font-synthesis: none;
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      min-width: 320px;
-      min-height: 100vh;
-      margin: 0;
-      display: grid;
-      place-items: center;
-      padding: 28px 16px;
-      background:
-        radial-gradient(ellipse at 50% 0%, rgba(35, 91, 158, .17), transparent 55%),
-        #080b12;
-    }
-
-    .login-card {
-      width: min(100%, 380px);
-      padding: 34px 30px 28px;
-      border: 1px solid #252c39;
-      border-radius: 22px;
-      background: #10151f;
-      box-shadow: 0 24px 70px rgba(0, 0, 0, .35);
-    }
-
-    .profile-icon {
-      width: 58px;
-      height: 58px;
-      margin: 0 auto 20px;
-      display: grid;
-      place-items: center;
-      border: 1px solid #2e4562;
-      border-radius: 50%;
-      background: #17263a;
-      color: #9dcaff;
-    }
-
-    h1 {
-      margin: 0;
-      color: #f7f9fc;
-      text-align: center;
-      font-size: 1.65rem;
-      font-weight: 750;
-      letter-spacing: -.035em;
-    }
-
-    .subtitle {
-      margin: 9px 0 27px;
-      color: #a4adbb;
-      text-align: center;
-      font-size: .92rem;
-    }
-
-    .field { margin-bottom: 18px; }
-
-    label.field-label {
-      display: block;
-      margin-bottom: 8px;
-      color: #e4e9f1;
-      font-size: .87rem;
-      font-weight: 600;
-    }
-
-    .text-input {
-      width: 100%;
-      min-height: 48px;
-      padding: 0 17px;
-      border: 1px solid #303948;
-      border-radius: 999px;
-      outline: none;
-      background: #0c111a;
-      color: #f7f9fc;
-      font: inherit;
-      font-size: .92rem;
-      transition: border-color .16s ease, box-shadow .16s ease;
-    }
-
-    .text-input::placeholder { color: #778191; }
-
-    .text-input:focus-visible {
-      border-color: #75b8ff;
-      box-shadow: 0 0 0 3px rgba(91, 166, 244, .24);
-    }
-
-    .field-error {
-      min-height: 18px;
-      margin: 6px 4px 0;
-      color: #ff9a9a;
-      font-size: .78rem;
-    }
-
-    .check-row, .form-options {
-      display: flex;
-      align-items: center;
-      gap: 9px;
-      color: #bac3d0;
-      font-size: .82rem;
-    }
-
-    .check-row {
-      width: fit-content;
-      cursor: pointer;
-    }
-
-    input[type="checkbox"] {
-      width: 16px;
-      height: 16px;
-      margin: 0;
-      accent-color: #6bb5ff;
-      cursor: pointer;
-    }
-
-    .show-password { margin: -7px 0 19px 3px; }
-
-    .form-options {
-      justify-content: space-between;
-      margin: 3px 1px 22px;
-    }
-
-    a {
-      color: #8bc6ff;
-      text-decoration: none;
-    }
-
-    a:hover { text-decoration: underline; }
-
-    a:focus-visible, button:focus-visible, input[type="checkbox"]:focus-visible {
-      outline: 3px solid #75b8ff;
-      outline-offset: 3px;
-    }
-
-    .submit-button {
-      width: 100%;
-      min-height: 49px;
-      border: 0;
-      border-radius: 999px;
-      background: #4b9bf0;
-      color: #07111e;
-      font: inherit;
-      font-size: .95rem;
-      font-weight: 750;
-      cursor: pointer;
-      transition: background .16s ease, opacity .16s ease, transform .16s ease;
-    }
-
-    .submit-button:not(:disabled):hover {
-      background: #70b3ff;
-      transform: translateY(-1px);
-    }
-
-    .submit-button:disabled {
-      background: #344151;
-      color: #a3adba;
-      cursor: not-allowed;
-      opacity: .7;
-    }
-
-    .server-error, .notice {
-      margin: -7px 0 17px;
-      padding: 10px 12px;
-      border: 1px solid #7d3b46;
-      border-radius: 12px;
-      background: #29181e;
-      color: #ffb6bb;
-      font-size: .85rem;
-    }
-
-    .notice {
-      border-color: #315d4a;
-      background: #14251d;
-      color: #a8e9c2;
-    }
-
-    .footer {
-      margin: 23px 0 0;
-      color: #a4adbb;
-      text-align: center;
-      font-size: .84rem;
-    }
-
-    .footer a { margin-left: 4px; font-weight: 650; }
-
-    @media (max-width: 420px) {
-      .login-card { padding: 30px 22px 24px; }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after {
-        scroll-behavior: auto !important;
-        transition-duration: .01ms !important;
-        animation-duration: .01ms !important;
-      }
-    }
+    :root { color-scheme:dark; font-family:system-ui,sans-serif; background:#080b12; color:#f4f7fb; }
+    * { box-sizing:border-box; }
+    body { min-height:100vh; margin:0; display:grid; place-items:center; padding:22px; background:radial-gradient(ellipse at 50% 0%,rgba(35,91,158,.18),transparent 55%),#080b12; }
+    main { width:min(100%,380px); padding:32px 28px; border:1px solid #28313f; border-radius:22px; background:#10151f; box-shadow:0 24px 70px #0006; }
+    .icon { width:58px; height:58px; display:grid; place-items:center; margin:0 auto 18px; border:1px solid #315578; border-radius:50%; background:#17263a; color:#9dcaff; }
+    h1,p { text-align:center; } h1 { margin:0; } .subtitle { color:#aab4c2; font-size:.9rem; margin-bottom:25px; }
+    label { display:block; margin:15px 0 7px; color:#e4e9f1; font-size:.9rem; }
+    input[type=email],input[type=password],input[type=text] { width:100%; min-height:48px; padding:0 16px; border:1px solid #303948; border-radius:999px; background:#0c111a; color:#f7f9fc; font:inherit; }
+    input:focus-visible,button:focus-visible,a:focus-visible { outline:3px solid #75b8ff; outline-offset:3px; }
+    .check { display:flex; align-items:center; gap:9px; color:#bac3d0; font-size:.84rem; }
+    input[type=checkbox] { accent-color:#6bb5ff; }
+    .options { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:16px 0 20px; }
+    a { color:#8bc6ff; text-decoration:none; } a:hover { text-decoration:underline; }
+    button { width:100%; min-height:48px; border:0; border-radius:999px; background:#4b9bf0; color:#07111e; font:inherit; font-weight:750; cursor:pointer; }
+    button:disabled { background:#344151; color:#a3adba; cursor:not-allowed; }
+    .error { padding:10px; border:1px solid #7d3b46; border-radius:12px; color:#ffb6bb; background:#29181e; }
+    .notice { padding:10px; border:1px solid #315d4a; border-radius:12px; color:#b9edcb; background:#14251d; }
+    .field-error { min-height:18px; margin:5px 5px 0; color:#ff9a9a; text-align:left; font-size:.78rem; }
+    .footer { margin-top:22px; color:#a4adbb; font-size:.86rem; }
   </style>
 </head>
 <body>
-  <main class="login-card" aria-labelledby="login-heading">
-    <div class="profile-icon" aria-hidden="true">
-      <svg viewBox="0 0 24 24" width="29" height="29" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="1.7"/>
-        <path d="M5.5 20c.5-3.5 2.8-5.5 6.5-5.5s6 2 6.5 5.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
-      </svg>
-    </div>
-    <h1 id="login-heading">Welcome Back!</h1>
-    <p class="subtitle">Please log in to your account.</p>
-
-    {% with messages = get_flashed_messages() %}
-      {% for message in messages %}
-        <p class="notice" role="status">{{ message }}</p>
-      {% endfor %}
-    {% endwith %}
-    {% if error %}
-      <p class="server-error" role="alert">{{ error }}</p>
-    {% endif %}
-
-    <form id="login-form" method="post" action="{{ url_for('login') }}" novalidate>
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-
-      <div class="field">
-        <label class="field-label" for="email">Email Address</label>
-        <input class="text-input" id="email" name="email" type="email"
-               placeholder="Enter your email" autocomplete="email"
-               value="{{ email }}" required aria-describedby="email-error">
-        <p class="field-error" id="email-error" aria-live="polite"></p>
-      </div>
-
-      <div class="field">
-        <label class="field-label" for="password">Password</label>
-        <input class="text-input" id="password" name="password" type="password"
-               placeholder="Enter your password" autocomplete="current-password"
-               required aria-describedby="password-error">
-        <p class="field-error" id="password-error" aria-live="polite"></p>
-      </div>
-
-      <label class="check-row show-password" for="show-password">
-        <input id="show-password" type="checkbox">
-        <span>Show password</span>
-      </label>
-
-      <div class="form-options">
-        <label class="check-row" for="remember">
-          <input id="remember" name="remember" type="checkbox">
-          <span>Remember Me</span>
-        </label>
-        <a href="{{ url_for('forgot_password') }}">Forgot Password?</a>
-      </div>
-
-      <button class="submit-button" id="submit-button" type="submit" disabled>
-        <span id="button-label">Log In</span>
-      </button>
-    </form>
-
-    <p class="footer">Don't have an account?<a href="{{ url_for('register') }}">Sign Up</a></p>
-  </main>
-
-  <script>
-    (() => {
-      const form = document.getElementById("login-form");
-      const email = document.getElementById("email");
-      const password = document.getElementById("password");
-      const showPassword = document.getElementById("show-password");
-      const submitButton = document.getElementById("submit-button");
-      const buttonLabel = document.getElementById("button-label");
-      const emailError = document.getElementById("email-error");
-      const passwordError = document.getElementById("password-error");
-      let emailTouched = false;
-      let passwordTouched = false;
-
-      function emailMessage() {
-        if (!email.value.trim()) return emailTouched ? "Please enter your email address." : "";
-        if (email.validity.typeMismatch) return "Please enter a valid email address.";
-        return "";
-      }
-
-      function passwordMessage() {
-        return !password.value ? (passwordTouched ? "Please enter your password." : "") : "";
-      }
-
-      function updateForm() {
-        const emailInvalid = !email.value.trim() || email.validity.typeMismatch;
-        const passwordInvalid = !password.value;
-        emailError.textContent = emailMessage();
-        passwordError.textContent = passwordMessage();
-        email.setAttribute("aria-invalid", String(Boolean(emailMessage())));
-        password.setAttribute("aria-invalid", String(Boolean(passwordMessage())));
-        submitButton.disabled = emailInvalid || passwordInvalid;
-      }
-
-      email.addEventListener("input", updateForm);
-      password.addEventListener("input", updateForm);
-      email.addEventListener("blur", () => { emailTouched = true; updateForm(); });
-      password.addEventListener("blur", () => { passwordTouched = true; updateForm(); });
-      showPassword.addEventListener("change", () => {
-        password.type = showPassword.checked ? "text" : "password";
-      });
-
-      form.addEventListener("submit", (event) => {
-        emailTouched = true;
-        passwordTouched = true;
-        updateForm();
-        if (submitButton.disabled) {
-          event.preventDefault();
-          return;
-        }
-        submitButton.disabled = true;
-        submitButton.setAttribute("aria-busy", "true");
-        buttonLabel.textContent = "Logging in…";
-      });
-
-      updateForm();
-    })();
-  </script>
+<main aria-labelledby="heading">
+  <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30" fill="none"><circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="1.7"/><path d="M5.5 20c.5-3.5 2.8-5.5 6.5-5.5s6 2 6.5 5.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+  <h1 id="heading">Welcome Back!</h1><p class="subtitle">Please log in to your account.</p>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}<p class="{{ 'error' if category == 'error' else 'notice' }}" role="status">{{ message }}</p>{% endfor %}
+  {% endwith %}
+  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+  <form method="post" id="login-form" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="next" value="{{ next_url }}">
+    <label for="email">Email Address</label><input id="email" name="email" type="email" placeholder="Enter your email" autocomplete="email" required aria-describedby="email-error">
+    <p id="email-error" class="field-error" aria-live="polite"></p>
+    <label for="password">Password</label><input id="password" name="password" type="password" placeholder="Enter your password" autocomplete="current-password" required aria-describedby="password-error">
+    <p id="password-error" class="field-error" aria-live="polite"></p>
+    <label class="check"><input id="show-password" type="checkbox"> Show password</label>
+    <div class="options"><label class="check"><input name="remember" type="checkbox"> Remember Me</label><a href="{{ url_for('forgot_password') }}">Forgot Password?</a></div>
+    <button id="submit" disabled><span id="button-label">Log In</span></button>
+  </form>
+  <p class="footer">Don't have an account? <a href="{{ url_for('register', next=next_url) }}">Sign Up</a></p>
+</main>
+<script>
+(() => {
+  const form=document.getElementById("login-form"), email=document.getElementById("email"), password=document.getElementById("password");
+  const button=document.getElementById("submit"), label=document.getElementById("button-label");
+  const emailError=document.getElementById("email-error"), passwordError=document.getElementById("password-error");
+  let emailTouched=false, passwordTouched=false;
+  function update() {
+    const emailMessage=!email.value.trim() ? (emailTouched?"Please enter your email address.":"") :
+      (!email.validity.valid?"Please enter a valid email address.":"");
+    const passwordMessage=!password.value && passwordTouched?"Please enter your password.":"";
+    emailError.textContent=emailMessage; passwordError.textContent=passwordMessage;
+    email.setAttribute("aria-invalid",String(Boolean(emailMessage)));
+    password.setAttribute("aria-invalid",String(Boolean(passwordMessage)));
+    button.disabled=!email.value.trim() || !email.validity.valid || !password.value;
+  }
+  email.addEventListener("input",update); password.addEventListener("input",update);
+  email.addEventListener("blur",()=>{emailTouched=true;update();});
+  password.addEventListener("blur",()=>{passwordTouched=true;update();});
+  document.getElementById("show-password").addEventListener("change",event=>password.type=event.target.checked?"text":"password");
+  form.addEventListener("submit",event=>{update();if(button.disabled){event.preventDefault();return;}button.disabled=true;button.setAttribute("aria-busy","true");label.textContent="Logging in…";});
+})();
+</script>
 </body>
 </html>

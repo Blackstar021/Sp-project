@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} | CyberSafe{% endblock %}
+{% block content %}
+<section class="narrow panel"><span class="eyebrow">CyberSafe</span><h1>{{ code }}</h1><p>{{ message }}</p><a class="button" href="{{ url_for('index') }}">Return home</a></section>
+{% endblock %}

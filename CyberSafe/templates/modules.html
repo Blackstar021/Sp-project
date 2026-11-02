@@ -1,21 +1,18 @@
 {% extends "base.html" %}
-{% block title %}Learning modules | CyberSafe{% endblock %}
+{% block title %}Learn | CyberSafe{% endblock %}
 {% block content %}
-<header class="narrow">
-  <span class="eyebrow">CyberSafe learning path</span>
-  <h1>Skills that travel with you.</h1>
-  <p class="lead">Explore bite-sized lessons, real-world examples, and a short knowledge check for every topic. No account is needed to learn.</p>
-</header>
-<section class="section grid" aria-label="Cybersecurity learning modules">
-  {% for module in modules %}
+<span class="eyebrow">Learning modules</span><h1>Skills for your digital life.</h1>
+<p class="lead">Short lessons, practical examples, takeaways, and a quiz for each topic.</p>
+<div class="grid section">{% for module in modules %}
   <article class="card">
-    <span class="card-meta">{{ module.question_count }} questions · Lesson + examples</span>
-    <h2>{{ module.title }}</h2>
-    <p>{{ module.summary }}</p>
-    <a class="button secondary" href="{{ url_for('module_detail', slug=module.slug) }}">Start learning</a>
+    <span class="small">{{ module.question_count }}-question quiz</span>
+    <h2>{{ module.title }}</h2><p>{{ module.summary }}</p>
+    <a href="{{ url_for('module',slug=module.slug) }}">Open lesson →</a>
+    {% if module.question_count %}
+    <p class="actions"><a class="button secondary" href="{{ url_for('quiz',slug=module.slug) }}">
+      {% if not current_user %}Sign in to take the quiz{% else %}Take the quiz{% endif %}
+    </a></p>
+    {% endif %}
   </article>
-  {% else %}
-  <p>Learning modules are being prepared. Please check back soon.</p>
-  {% endfor %}
-</section>
+{% endfor %}</div>
 {% endblock %}

@@ -1,85 +1,39 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <title>Create account | CyberSafe</title>
-  <style>
-    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #080b12; color: #f4f7fb; }
-    * { box-sizing: border-box; }
-    body { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 24px; background: radial-gradient(ellipse at 50% 0%, rgba(35,91,158,.17), transparent 55%), #080b12; }
-    main { width: min(100%, 410px); padding: 32px; border: 1px solid #252c39; border-radius: 22px; background: #10151f; }
-    h1 { margin: 0; text-align: center; }
-    p { color: #a4adbb; line-height: 1.6; }
-    label { display: block; margin: 18px 0 7px; color: #e4e9f1; font-size: .9rem; }
-    input { width: 100%; min-height: 46px; padding: 0 14px; border: 1px solid #303948; border-radius: 999px; background: #0c111a; color: #f7f9fc; font: inherit; }
-    input:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid #75b8ff; outline-offset: 3px; }
-    button { width: 100%; min-height: 47px; margin-top: 21px; border: 0; border-radius: 999px; background: #4b9bf0; color: #07111e; font: inherit; font-weight: 700; cursor: pointer; }
-    a { color: #8bc6ff; }
-    .error { color: #ffb6bb; }
-    .meter-track { height: 7px; margin: 9px 0; overflow: hidden; border-radius: 8px; background: #303948; }
-    .meter-fill { width: 0; height: 100%; background: #e77e83; transition: width .2s ease, background .2s ease; }
-    .hint { margin: 5px 0; font-size: .82rem; }
-    .center { text-align: center; }
-    @media (max-width: 430px) { main { padding: 26px 22px; } }
-  </style>
-</head>
-<body>
-  <main>
-    <h1>Create your account</h1>
-    <p class="center">Save your quiz scores and learning progress. Browsing remains open to everyone.</p>
-    {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
-    <form method="post" action="{{ url_for('register') }}" id="register-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <label for="name">Name</label>
-      <input id="name" name="name" autocomplete="name" maxlength="100" value="{{ name }}" required>
-      <label for="email">Email Address</label>
-      <input id="email" name="email" type="email" autocomplete="email" value="{{ email }}" required>
-      <label for="password">Password (at least 8 characters)</label>
-      <input id="password" name="password" type="password" autocomplete="new-password" minlength="8" aria-describedby="strength-hint" required>
-      <div class="meter-track" aria-hidden="true"><div id="strength-meter" class="meter-fill"></div></div>
-      <p class="hint" id="strength-hint" aria-live="polite">Use a long, unique passphrase. Avoid personal details.</p>
-      <label for="confirm-password">Confirm password</label>
-      <input id="confirm-password" name="confirm_password" type="password" autocomplete="new-password" minlength="8" required>
-      <p class="hint error" id="confirm-error" aria-live="polite"></p>
-      <button type="submit">Create account</button>
-    </form>
-    <p class="center">Already have an account? <a href="{{ url_for('login') }}">Log in</a></p>
-  </main>
-  <script>
-    (() => {
-      const password = document.getElementById("password");
-      const confirmation = document.getElementById("confirm-password");
-      const meter = document.getElementById("strength-meter");
-      const hint = document.getElementById("strength-hint");
-      const error = document.getElementById("confirm-error");
-      const form = document.getElementById("register-form");
-      function checkPassword() {
-        const value = password.value;
-        const checks = [value.length >= 12, /[a-z]/.test(value) && /[A-Z]/.test(value), /\d/.test(value), /[^A-Za-z0-9]/.test(value)];
-        const score = value ? checks.filter(Boolean).length : 0;
-        meter.style.width = `${score * 25}%`;
-        meter.style.background = score < 2 ? "#e77e83" : score < 4 ? "#e8bc67" : "#65cf91";
-        const suggestions = [];
-        if (value.length < 12) suggestions.push("try 12 or more characters");
-        if (!checks[1]) suggestions.push("mix upper- and lowercase letters");
-        if (!checks[2]) suggestions.push("consider adding numbers");
-        if (!checks[3]) suggestions.push("consider adding a symbol");
-        hint.textContent = suggestions.length ? `Strength ${score}/4: ${suggestions.join("; ")}.` : "Strong format. Use a unique password for this account.";
-        error.textContent = confirmation.value && confirmation.value !== value ? "Passwords do not match." : "";
-      }
-      password.addEventListener("input", checkPassword);
-      confirmation.addEventListener("input", checkPassword);
-      form.addEventListener("submit", (event) => {
-        checkPassword();
-        if (password.value !== confirmation.value) {
-          event.preventDefault();
-          error.textContent = "Passwords do not match.";
-          confirmation.focus();
-        }
-      });
-    })();
-  </script>
-</body>
-</html>
+{% extends "base.html" %}
+{% block title %}Create account | CyberSafe{% endblock %}
+{% block content %}
+<section class="narrow panel">
+  <span class="eyebrow">Save learning progress</span><h1>Create an account</h1>
+  <p>Browsing is open to everyone. An account saves quiz scores and module progress.</p>
+  {% if error %}<p class="flash error" role="alert">{{ error }}</p>{% endif %}
+  <form method="post" id="register-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="next" value="{{ next_url }}">
+    <label class="field">Name<input name="name" maxlength="100" autocomplete="name" required></label>
+    <label class="field">Email<input name="email" type="email" autocomplete="email" required></label>
+    <label class="field">Password (8+ characters)<input id="password" name="password" type="password" minlength="8" autocomplete="new-password" required></label>
+    <meter id="meter" class="password-meter" min="0" max="4" value="0">0</meter>
+    <p id="hint" aria-live="polite">Use a long, unique passphrase.</p>
+    <label class="field">Confirm password<input id="confirm" name="confirm_password" type="password" minlength="8" autocomplete="new-password" required></label>
+    <p id="match" class="small" aria-live="polite"></p>
+    <button type="submit">Create account</button>
+  </form>
+  <p>Already registered? <a href="{{ url_for('login', next=next_url) }}">Sign in</a></p>
+</section>
+{% endblock %}
+{% block head %}<style>.password-meter { width:100%; }</style>{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+ const password=document.getElementById("password"), confirm=document.getElementById("confirm"), meter=document.getElementById("meter"), hint=document.getElementById("hint"), match=document.getElementById("match");
+ function update() {
+   const value=password.value, checks=[value.length>=12,/[a-z]/.test(value)&&/[A-Z]/.test(value),/\d/.test(value),/[^A-Za-z0-9]/.test(value)];
+   meter.value=value?checks.filter(Boolean).length:0;
+   const ideas=[]; if(value.length<12)ideas.push("use 12+ characters");if(!checks[1])ideas.push("mix letter case");if(!checks[2])ideas.push("consider numbers");if(!checks[3])ideas.push("consider a symbol");
+   hint.textContent=value?`Strength ${meter.value}/4. ${ideas.length?ideas.join("; "):"Use a unique password for this account."}`:"Use a long, unique passphrase.";
+   match.textContent=confirm.value&&confirm.value!==value?"Passwords do not match.":"";
+ }
+ password.addEventListener("input",update);confirm.addEventListener("input",update);
+ document.getElementById("register-form").addEventListener("submit",event=>{update();if(password.value!==confirm.value){event.preventDefault();match.textContent="Passwords do not match.";confirm.focus();}});
+})();
+</script>
+{% endblock %}

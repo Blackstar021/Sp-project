@@ -2,54 +2,45 @@
 {% block title %}{{ module.title }} quiz | CyberSafe{% endblock %}
 {% block head %}
 <style>
-  .quiz-question { margin: 18px 0; padding: 21px; border: 1px solid #252c39; border-radius: 16px; background: #10151f; }
-  .quiz-question fieldset { margin: 0; padding: 0; border: 0; }
-  .quiz-question legend { margin-bottom: 12px; color: #f4f7fb; font-weight: 700; line-height: 1.5; }
-  .quiz-option { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0; color: #c3ccd8; line-height: 1.5; cursor: pointer; }
-  .quiz-option input { margin-top: 4px; accent-color: #69b4ff; }
-  .answer-feedback { min-height: 24px; color: #b7c5d6; }
+  .question { margin:16px 0; padding:20px; border:1px solid #28313f; border-radius:16px; background:#10151f; }
+  .question fieldset { border:0; padding:0; margin:0; }
+  .question legend { color:#f4f7fb; font-weight:700; line-height:1.55; margin-bottom:12px; }
+  .option { display:flex; gap:10px; align-items:flex-start; margin:10px 0; color:#c3ccd8; line-height:1.5; }
+  .feedback { min-height:24px; }
 </style>
 {% endblock %}
 {% block content %}
 <article class="narrow">
-  <a href="{{ url_for('module_detail', slug=module.slug) }}">← Back to {{ module.title }}</a>
-  <header class="section">
-    <span class="eyebrow">Knowledge check</span>
-    <h1>{{ module.title }} quiz</h1>
-    <p class="lead">Choose one answer for each question. You can change your answers before submitting.</p>
-  </header>
-  <form method="post" action="{{ url_for('quiz', slug=module.slug) }}" id="quiz-form">
+  <a href="{{ url_for('module',slug=module.slug) }}">← Back to {{ module.title }}</a>
+  <header class="section"><span class="eyebrow">Knowledge check</span><h1>{{ module.title }} quiz</h1><p class="lead">Choose one answer per question. Feedback appears as you answer.</p></header>
+  {% if not questions %}
+  <section class="panel"><p>Quiz questions are being prepared for this lesson. You can review the lesson or choose another module.</p><a href="{{ url_for('modules') }}">Browse modules</a></section>
+  {% else %}
+  <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     {% for question in questions %}
-    <section class="quiz-question" data-answer="{{ question.answer }}" data-explanation="{{ question.explanation }}">
-      <fieldset>
-        <legend>{{ loop.index }}. {{ question.prompt }}</legend>
+    <section class="question" data-answer="{{ question.answer }}" data-explanation="{{ question.explanation }}">
+      <fieldset><legend>{{ loop.index }}. {{ question.prompt }}</legend>
         {% for option in question.options %}
-        <label class="quiz-option">
-          <input type="radio" name="q_{{ question.id }}" value="{{ loop.index0 }}">
-          <span>{{ option }}</span>
-        </label>
+        <label class="option"><input type="radio" name="q_{{ question.id }}" value="{{ loop.index0 }}"><span>{{ option }}</span></label>
         {% endfor %}
       </fieldset>
-      <p class="answer-feedback" aria-live="polite"></p>
+      <p class="feedback" aria-live="polite"></p>
     </section>
     {% endfor %}
     <button type="submit">Submit answers</button>
   </form>
+  {% endif %}
 </article>
 {% endblock %}
 {% block scripts %}
 <script>
-  document.querySelectorAll(".quiz-question").forEach((question) => {
-    question.querySelectorAll('input[type="radio"]').forEach((choice) => {
-      choice.addEventListener("change", () => {
-        const answer = Number(question.dataset.answer);
-        const correct = Number(choice.value) === answer;
-        const feedback = question.querySelector(".answer-feedback");
-        feedback.textContent = `${correct ? "Correct." : "Not quite."} ${question.dataset.explanation}`;
-        feedback.className = `answer-feedback ${correct ? "score-good" : "score-bad"}`;
-      });
-    });
-  });
+document.querySelectorAll(".question").forEach(question=>{
+ question.querySelectorAll('input[type="radio"]').forEach(option=>option.addEventListener("change",()=>{
+   const correct=Number(option.value)===Number(question.dataset.answer), feedback=question.querySelector(".feedback");
+   feedback.textContent=`${correct?"Correct.":"Not quite."} ${question.dataset.explanation}`;
+   feedback.style.color=correct?"#9be0b6":"#ffb6bb";
+ }));
+});
 </script>
 {% endblock %}
