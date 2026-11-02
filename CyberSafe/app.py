@@ -16,7 +16,17 @@ import click
 from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
+try:
+    from dotenv import load_dotenv
+except ImportError:  # python-dotenv is optional; env vars can be set directly
+    def load_dotenv(_path):
+        return False
+
 ROOT = Path(__file__).resolve().parent
+# Local development secrets: load .env from the app folder and the project root
+# (Vercel ignores these files; set environment variables in the project dashboard).
+load_dotenv(ROOT / ".env")
+load_dotenv(ROOT.parent / ".env")
 IS_VERCEL = bool(os.environ.get("VERCEL"))
 # Vercel's serverless filesystem is read-only except for /tmp.
 DEFAULT_DATABASE = Path("/tmp/cybersafe.sqlite3") if IS_VERCEL else ROOT / "cybersafe.sqlite3"
