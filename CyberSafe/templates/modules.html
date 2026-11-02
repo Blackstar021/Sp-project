@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Learning modules | CyberSafe{% endblock %}
+{% block content %}
+<header class="narrow">
+  <span class="eyebrow">CyberSafe learning path</span>
+  <h1>Skills that travel with you.</h1>
+  <p class="lead">Explore bite-sized lessons, real-world examples, and a short knowledge check for every topic. No account is needed to learn.</p>
+</header>
+<section class="section grid" aria-label="Cybersecurity learning modules">
+  {% for module in modules %}
+  <article class="card">
+    <span class="card-meta">{{ module.question_count }} questions · Lesson + examples</span>
+    <h2>{{ module.title }}</h2>
+    <p>{{ module.summary }}</p>
+    <a class="button secondary" href="{{ url_for('module_detail', slug=module.slug) }}">Start learning</a>
+  </article>
+  {% else %}
+  <p>Learning modules are being prepared. Please check back soon.</p>
+  {% endfor %}
+</section>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ module.title }} quiz results | CyberSafe{% endblock %}
+{% block head %}<style>.review-card { margin: 12px 0; }</style>{% endblock %}
+{% block content %}
+<article class="narrow">
+  <span class="eyebrow">Quiz complete</span>
+  <h1>Your {{ module.title }} results</h1>
+  <section class="panel" aria-live="polite">
+    <h2 class="{{ 'score-good' if score == total else '' }}">{{ score }} / {{ total }} correct</h2>
+    <p>
+      {% if score == total %}Excellent work—you have a strong grasp of this topic.
+      {% elif score * 2 >= total %}Good progress. Review the explanations below to strengthen your skills.
+      {% else %}Keep learning. The lesson and answer explanations are here whenever you need them.{% endif %}
+    </p>
+    {% if saved %}
+      <p class="score-good">Your score and module progress were saved to your dashboard.</p>
+    {% else %}
+      <p>Want to save your quiz history? <a href="{{ url_for('register') }}">Create a free account</a> or <a href="{{ url_for('login') }}">log in</a>.</p>
+    {% endif %}
+  </section>
+  <section class="section" aria-labelledby="review-heading">
+    <h2 id="review-heading">Answer review</h2>
+    {% for item in review %}
+    <article class="card review-card">
+      <h3>{{ loop.index }}. {{ item.prompt }}</h3>
+      {% if item.selected >= 0 and item.selected < item.options|length %}
+        <p class="{{ 'score-good' if item.correct else 'score-bad' }}">Your answer: {{ item.options[item.selected] }}</p>
+      {% else %}
+        <p class="score-bad">You did not answer this question.</p>
+      {% endif %}
+      <p class="score-good">Correct answer: {{ item.options[item.answer] }}</p>
+      <p>{{ item.explanation }}</p>
+    </article>
+    {% endfor %}
+  </section>
+  <div class="hero-actions">
+    <a class="button" href="{{ url_for('module_detail', slug=module.slug) }}">Review lesson</a>
+    <a class="button secondary" href="{{ url_for('modules') }}">Explore other modules</a>
+    {% if saved %}<a class="button secondary" href="{{ url_for('dashboard') }}">My dashboard</a>{% endif %}
+  </div>
+</article>
+{% endblock %}

@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>{% block title %}CyberSafe | Learn. Think. Stay Safe.{% endblock %}</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #080b12;
+      color: #f4f7fb;
+      font-synthesis: none;
+      --panel: #10151f;
+      --line: #252c39;
+      --muted: #a4adbb;
+      --blue: #8bc6ff;
+      --green: #9be0b6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-width: 320px;
+      min-height: 100vh;
+      margin: 0;
+      background: radial-gradient(ellipse at 50% -18%, rgba(35, 91, 158, .2), transparent 50%), #080b12;
+    }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+      outline: 3px solid #75b8ff;
+      outline-offset: 3px;
+    }
+    .site-header { border-bottom: 1px solid var(--line); background: rgba(8, 11, 18, .92); }
+    .nav { width: min(1120px, 100%); min-height: 70px; margin: auto; padding: 12px 22px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .brand { display: flex; align-items: center; gap: 10px; color: #f4f7fb; font-weight: 800; font-size: 1.12rem; letter-spacing: -.03em; }
+    .brand-mark { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid #315578; border-radius: 11px; background: #14283e; color: #9dcaff; }
+    .nav-links { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 18px; font-size: .9rem; }
+    .nav-links a { color: #c4ccd8; }
+    .nav-links .nav-cta { padding: 8px 14px; border: 1px solid #315578; border-radius: 999px; color: #a9d4ff; }
+    .nav-user { color: #a4adbb; }
+    .page { width: min(1120px, 100%); margin: 0 auto; padding: 48px 22px 72px; }
+    .narrow { width: min(780px, 100%); margin: 0 auto; }
+    .eyebrow { color: #91c6fa; font-size: .77rem; font-weight: 750; letter-spacing: .13em; text-transform: uppercase; }
+    h1, h2, h3 { color: #f7f9fc; letter-spacing: -.035em; }
+    h1 { margin: 8px 0 14px; font-size: clamp(2.15rem, 5vw, 3.6rem); line-height: 1.05; }
+    h2 { margin: 0 0 12px; font-size: 1.48rem; }
+    h3 { margin: 0 0 8px; font-size: 1.12rem; }
+    p { color: #b6c0ce; line-height: 1.7; }
+    .lead { max-width: 720px; margin: 0; color: #b7c5d6; font-size: 1.1rem; }
+    .hero { padding: 50px 0 30px; }
+    .hero-actions, .inline-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+    .button, button {
+      display: inline-flex; min-height: 44px; align-items: center; justify-content: center;
+      padding: 0 18px; border: 1px solid #426b94; border-radius: 999px;
+      background: #4b9bf0; color: #07111e; font: inherit; font-weight: 750; cursor: pointer;
+    }
+    .button.secondary { border-color: #303948; background: #151c27; color: #e4e9f1; }
+    .button:hover, button:hover { filter: brightness(1.1); text-decoration: none; }
+    .section { margin-top: 54px; }
+    .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
+    .section-heading p { margin: 0; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 16px; }
+    .card, .panel { border: 1px solid var(--line); border-radius: 18px; background: var(--panel); }
+    .card { padding: 22px; }
+    .card p { margin: 8px 0 15px; }
+    .card-meta { color: #8290a1; font-size: .82rem; }
+    .panel { padding: 26px; }
+    .callout { margin: 18px 0; padding: 17px 19px; border: 1px solid #315d4a; border-radius: 14px; background: #14251d; }
+    .callout h2, .callout h3 { color: var(--green); }
+    .callout p, .callout li { color: #c0d8c8; }
+    .callout ul, .content-list { padding-left: 21px; }
+    .callout li, .content-list li { margin: 8px 0; color: #c3ccd8; line-height: 1.6; }
+    .flash-list { margin-bottom: 22px; }
+    .flash { padding: 12px 15px; border: 1px solid #315d4a; border-radius: 12px; background: #14251d; color: #b9edcb; }
+    .flash.error { border-color: #7d3b46; background: #29181e; color: #ffb6bb; }
+    .site-footer { padding: 25px 22px; border-top: 1px solid var(--line); color: #8994a4; text-align: center; font-size: .85rem; }
+    .site-footer a { margin: 0 6px; }
+    .form-field { display: grid; gap: 7px; margin: 15px 0; color: #e4e9f1; font-size: .9rem; }
+    .form-field input, .form-field textarea, .form-field select {
+      width: 100%; min-height: 45px; padding: 10px 13px; border: 1px solid #303948;
+      border-radius: 11px; background: #0c111a; color: #f7f9fc; font: inherit;
+    }
+    .form-field textarea { min-height: 110px; resize: vertical; }
+    .muted { color: var(--muted); }
+    .score-good { color: var(--green); }
+    .score-bad { color: #ffb6bb; }
+    @media (max-width: 700px) {
+      .nav { align-items: flex-start; flex-direction: column; gap: 10px; }
+      .nav-links { justify-content: flex-start; gap: 12px 16px; }
+      .page { padding-top: 34px; }
+      .hero { padding-top: 30px; }
+      .section-heading { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav" aria-label="Main navigation">
+      <a class="brand" href="{{ url_for('index') }}">
+        <span class="brand-mark" aria-hidden="true">⌑</span>
+        <span>CyberSafe</span>
+      </a>
+      <div class="nav-links">
+        <a href="{{ url_for('modules') }}">Learn</a>
+        <a href="{{ url_for('tips') }}">Safety tips</a>
+        <a href="{{ url_for('phishing_activity') }}">Phishing lab</a>
+        {% if current_user %}
+          <a href="{{ url_for('dashboard') }}">My progress</a>
+          {% if current_user.role == "admin" %}<a href="{{ url_for('admin_panel') }}">Admin</a>{% endif %}
+          <span class="nav-user">Hi, {{ current_user.name }}</span>
+          <form method="post" action="{{ url_for('logout') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="button secondary">Log out</button>
+          </form>
+        {% else %}
+          <a href="{{ url_for('login') }}">Log in</a>
+          <a class="nav-cta" href="{{ url_for('register') }}">Create account</a>
+        {% endif %}
+      </div>
+    </nav>
+  </header>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="page flash-list" role="status">
+        {% for category, message in messages %}
+          <p class="flash {{ category if category == 'error' else '' }}">{{ message }}</p>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+  <main class="page">{% block content %}{% endblock %}</main>
+  <footer class="site-footer">
+    CyberSafe helps students build safer digital habits.
+    <a href="{{ url_for('modules') }}">Learning modules</a>
+    <a href="{{ url_for('tips') }}">Safety tips</a>
+  </footer>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

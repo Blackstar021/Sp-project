@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Online safety tips | CyberSafe{% endblock %}
+{% block content %}
+<header class="narrow">
+  <span class="eyebrow">Everyday online safety</span>
+  <h1>Good habits. Fewer surprises.</h1>
+  <p class="lead">Simple, practical reminders you can use whenever you learn, play, or connect online.</p>
+</header>
+<div class="grid section">
+  {% for category, items in categories.items() %}
+  <section class="card" aria-labelledby="category-{{ loop.index }}">
+    <h2 id="category-{{ loop.index }}">{{ category }}</h2>
+    <ul class="content-list">{% for item in items %}<li>{{ item }}</li>{% endfor %}</ul>
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}

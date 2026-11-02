@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{{ module.title }} | CyberSafe{% endblock %}
+{% block head %}<style>.strength-meter { width: 100%; }</style>{% endblock %}
+{% block content %}
+<article class="narrow">
+  <a href="{{ url_for('modules') }}">← All modules</a>
+  <header class="section">
+    <span class="eyebrow">Learning module</span>
+    <h1>{{ module.title }}</h1>
+    <p class="lead">{{ module.summary }}</p>
+  </header>
+  <section class="panel section" aria-labelledby="lesson-title">
+    <h2 id="lesson-title">The lesson</h2>
+    <p>{{ module.lesson }}</p>
+  </section>
+  <section class="section" aria-labelledby="examples-title">
+    <h2 id="examples-title">Real-world examples</h2>
+    <ul class="content-list">{% for example in module.examples %}<li>{{ example }}</li>{% endfor %}</ul>
+  </section>
+  <aside class="callout" aria-labelledby="takeaways-title">
+    <h2 id="takeaways-title">Key Takeaways</h2>
+    <ul>{% for takeaway in module.takeaways %}<li>{{ takeaway }}</li>{% endfor %}</ul>
+  </aside>
+  {% if module.slug == "password-security" %}
+  <section class="panel section" aria-labelledby="strength-title">
+    <h2 id="strength-title">Try the password strength checker</h2>
+    <label class="form-field" for="strength-password">Test a password (it stays in your browser)
+      <input id="strength-password" type="password" autocomplete="off">
+    </label>
+    <meter id="strength-meter" class="strength-meter" min="0" max="4" value="0">0 of 4</meter>
+    <p id="strength-result" aria-live="polite">Enter a sample password to see suggestions. Do not enter a password you use.</p>
+  </section>
+  {% endif %}
+  <div class="hero-actions"><a class="button" href="{{ url_for('quiz', slug=module.slug) }}">Take the {{ module.question_count }}-question quiz</a></div>
+</article>
+{% endblock %}
+{% block scripts %}
+{% if module.slug == "password-security" %}
+<script>
+  (() => {
+    const input = document.getElementById("strength-password");
+    const meter = document.getElementById("strength-meter");
+    const output = document.getElementById("strength-result");
+    input.addEventListener("input", () => {
+      const value = input.value;
+      const checks = [
+        value.length >= 12,
+        /[a-z]/.test(value) && /[A-Z]/.test(value),
+        /\d/.test(value),
+        /[^A-Za-z0-9]/.test(value)
+      ];
+      const score = value ? checks.filter(Boolean).length : 0;
+      meter.value = score;
+      if (!value) {
+        output.textContent = "Enter a sample password to see suggestions. Do not enter a password you use.";
+        return;
+      }
+      const suggestions = [];
+      if (value.length < 12) suggestions.push("make it at least 12 characters");
+      if (!checks[1]) suggestions.push("mix upper- and lowercase letters");
+      if (!checks[2]) suggestions.push("consider adding numbers");
+      if (!checks[3]) suggestions.push("consider adding a symbol");
+      output.textContent = suggestions.length
+        ? `Strength ${score} of 4. Suggestions: ${suggestions.join("; ")}.`
+        : "Strength 4 of 4. Great length and variety; keep it unique to this account.";
+    });
+  })();
+</script>
+{% endif %}
+{% endblock %}
