@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ module.title }} | CyberSafe{% endblock %}
+{% block head %}<style>.strength-meter { width:100%; }</style>{% endblock %}
+{% block content %}
+<article class="narrow">
+  <a href="{{ url_for('modules') }}">← All modules</a><header class="section"><span class="eyebrow">Learning module</span><h1>{{ module.title }}</h1><p class="lead">{{ module.summary }}</p></header>
+  <section class="panel section"><h2>The lesson</h2><p>{{ module.lesson }}</p></section>
+  <section class="section"><h2>Real-world examples</h2><ul class="lesson-list">{% for example in module.examples %}<li>{{ example }}</li>{% endfor %}</ul></section>
+  <aside class="callout section"><h2>Key Takeaways</h2><ul>{% for takeaway in module.takeaways %}<li>{{ takeaway }}</li>{% endfor %}</ul></aside>
+  {% if module.slug == 'password-security' %}
+  <section class="panel section"><h2>Password strength checker</h2><label class="field">Test a sample password (do not enter one you use)<input id="sample-password" type="password" autocomplete="off"></label><meter id="strength-meter" class="strength-meter" min="0" max="4" value="0">0</meter><p id="strength-hint" aria-live="polite">Your sample stays in this browser.</p></section>
+  {% endif %}
+  {% if module.question_count %}
+  <p class="actions"><a class="button" href="{{ url_for('quiz',slug=module.slug) }}">
+    {% if not current_user %}
+    <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none"><rect x="3" y="7" width="10" height="8" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="currentColor" stroke-width="1.5"/></svg>
+    Sign in to take the quiz
+    {% else %}Take the quiz{% endif %}
+  </a></p>
+  {% else %}
+  <p class="panel section">Quiz questions are being prepared for this lesson. Check back soon.</p>
+  {% endif %}
+</article>
+{% endblock %}
+{% block scripts %}
+{% if module.slug == 'password-security' %}
+<script>
+document.getElementById("sample-password").addEventListener("input",event=>{
+ const value=event.target.value, checks=[value.length>=12,/[a-z]/.test(value)&&/[A-Z]/.test(value),/\d/.test(value),/[^A-Za-z0-9]/.test(value)];
+ const meter=document.getElementById("strength-meter"), hint=document.getElementById("strength-hint"); meter.value=value?checks.filter(Boolean).length:0;
+ const todo=[];if(value.length<12)todo.push("use at least 12 characters");if(!checks[1])todo.push("mix upper- and lowercase letters");if(!checks[2])todo.push("consider adding numbers");if(!checks[3])todo.push("consider adding a symbol");
+ hint.textContent=value?`Strength ${meter.value}/4. ${todo.length?todo.join("; "):"Good variety. Keep it unique."}`:"Your sample stays in this browser.";
+});
+</script>
+{% endif %}
+{% endblock %}

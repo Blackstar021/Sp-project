@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Phishing lab | CyberSafe{% endblock %}
+{% block content %}
+<article class="narrow">
+  <span class="eyebrow">Mini activity</span><h1>Spot the phishing clues.</h1>
+  <p class="lead">Review this fictional message and choose a safe next step.</p>
+  <section class="panel section" aria-label="Example suspicious message">
+    <p><strong>From:</strong> School Account Support &lt;security-alert@example.invalid&gt;</p>
+    <p><strong>Subject:</strong> FINAL WARNING: account closes in 10 minutes</p>
+    <p>Your account will be deleted unless you sign in at school-verify.example.invalid. Do not contact the school; keep this confidential.</p>
+  </section>
+  <fieldset class="panel section"><legend>What should you do?</legend>
+    <label class="field"><span><input type="radio" name="choice" value="unsafe"> Click the link immediately</span></label>
+    <label class="field"><span><input type="radio" name="choice" value="safe"> Visit the official school site or contact IT using a known channel</span></label>
+    <button id="check-choice" type="button">Check my choice</button><p id="feedback" aria-live="polite"></p>
+  </fieldset>
+</article>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById("check-choice").addEventListener("click",()=>{
+ const selected=document.querySelector('input[name="choice"]:checked'), feedback=document.getElementById("feedback");
+ if(!selected){feedback.textContent="Choose an answer first.";return;}
+ feedback.textContent=selected.value==="safe"
+ ? "Correct. The urgency, threat, secrecy request, and unfamiliar domain are warning signs."
+ : "Not quite. Urgency, a threat, secrecy, and an unfamiliar domain are warning signs. Verify independently.";
+});
+</script>
+{% endblock %}

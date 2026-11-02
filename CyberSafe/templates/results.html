@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Quiz results | CyberSafe{% endblock %}
+{% block head %}<style>.review-card { margin:12px 0; }</style>{% endblock %}
+{% block content %}
+<article class="narrow">
+  <span class="eyebrow">Quiz complete</span><h1>{{ module.title }} results</h1>
+  <section class="panel"><h2>{{ score }} / {{ total }} correct</h2>
+    <p>{% if score == total %}Excellent work!{% elif score * 2 >= total %}Good progress—review the explanations below.{% else %}Keep learning. Review the lesson and try again.{% endif %}</p>
+    {% if saved %}<p>Your score and progress were saved to your dashboard.</p>{% else %}<p><a href="{{ url_for('register') }}">Create an account</a> to save quiz history.</p>{% endif %}
+  </section>
+  <section class="section"><h2>Answer review</h2>
+    {% for item in review %}<article class="card review-card">
+      <h3>{{ loop.index }}. {{ item.prompt }}</h3>
+      {% if item.selected >= 0 and item.selected < item.options|length %}<p>Your answer: {{ item.options[item.selected] }}</p>{% else %}<p>You did not answer this question.</p>{% endif %}
+      <p>Correct answer: {{ item.options[item.answer] }}</p><p>{{ item.explanation }}</p>
+    </article>{% endfor %}
+  </section>
+  <div class="actions"><a class="button" href="{{ url_for('module',slug=module.slug) }}">Review lesson</a><a class="button secondary" href="{{ url_for('modules') }}">Other modules</a></div>
+</article>
+{% endblock %}

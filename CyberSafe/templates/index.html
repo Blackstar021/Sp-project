@@ -1,44 +1,35 @@
 {% extends "base.html" %}
-{% block title %}CyberSafe | Learn. Think. Stay Safe.{% endblock %}
+{% block title %}CyberSafe | Online safety for students{% endblock %}
 {% block content %}
 <section class="hero">
-  <span class="eyebrow">A smarter, safer internet starts here</span>
-  <h1>Build confidence<br>for your digital life.</h1>
-  <p class="lead">Learn how to spot online threats, protect your accounts and personal information, and show up responsibly in every digital space.</p>
-  <div class="hero-actions">
-    <a class="button" href="{{ url_for('modules') }}">Explore learning modules</a>
-    <a class="button secondary" href="{{ url_for('tips') }}">Quick safety tips</a>
-  </div>
-  <p class="muted">Browse all learning content without an account. Sign in to save quiz scores and progress.</p>
+  <span class="eyebrow">A safer digital life starts here</span>
+  <h1>Learn to navigate<br>the online world.</h1>
+  <p class="lead">Build confidence spotting scams, protecting your accounts and personal information, and treating others responsibly online.</p>
+  <div class="actions"><a class="button" href="{{ url_for('modules') }}">Explore learning modules</a><a class="button secondary" href="{{ url_for('tips') }}">Quick safety tips</a></div>
+  <p class="small">Browse without an account. Sign in if you want to save quiz scores and progress.</p>
 </section>
-<section class="section" aria-labelledby="modules-heading">
-  <div class="section-heading">
-    <div><span class="eyebrow">Learn at your pace</span><h2 id="modules-heading">Cyber skills for real life</h2></div>
-    <a href="{{ url_for('modules') }}">View all modules →</a>
-  </div>
-  <div class="grid">
-    {% for module in modules %}
+<section class="section">
+  <h2>Explore the learning path</h2>
+  <div class="grid">{% for module in modules %}
     <article class="card">
-      <span class="card-meta">{{ module.question_count }}-question quiz</span>
-      <h3>{{ module.title }}</h3>
-      <p>{{ module.summary }}</p>
-      <a href="{{ url_for('module_detail', slug=module.slug) }}">Explore lesson →</a>
+      <span class="small">{{ module.question_count }}-question quiz</span>
+      <h3>{{ module.title }}</h3><p>{{ module.summary }}</p>
+      <a href="{{ url_for('module', slug=module.slug) }}">Explore lesson →</a>
+      {% if module.question_count %}
+      <p class="actions">
+        <a class="button secondary" href="{{ url_for('quiz', slug=module.slug) }}">
+          {% if not current_user %}
+          <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none"><rect x="3" y="7" width="10" height="8" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="currentColor" stroke-width="1.5"/></svg>
+          Sign in to take the quiz
+          {% else %}Take the quiz{% endif %}
+        </a>
+      </p>
+      {% endif %}
     </article>
-    {% endfor %}
-  </div>
+  {% endfor %}</div>
 </section>
 <section class="section grid">
-  <article class="panel">
-    <span class="eyebrow">Try it now</span>
-    <h2>Spot the phishing clues</h2>
-    <p>A message says your school account will be disabled in 10 minutes. It asks you to sign in through an unfamiliar link. What do you do?</p>
-    <a class="button secondary" href="{{ url_for('phishing_activity') }}">Open the phishing lab</a>
-  </article>
-  <article class="panel">
-    <span class="eyebrow">Small habits, big impact</span>
-    <h2>Make your passwords stronger</h2>
-    <p>Try a long passphrase, keep it unique to each account, and add multi-factor authentication.</p>
-    <a href="{{ url_for('module_detail', slug='password-security') }}">Learn password security →</a>
-  </article>
+  <article class="panel"><h2>Spot the phishing clues</h2><p>Practice identifying pressure tactics, suspicious links, and other warning signs.</p><a class="button secondary" href="{{ url_for('phishing_activity') }}">Try the activity</a></article>
+  <article class="panel"><h2>Small habits, big impact</h2><p>Use strong unique passwords, enable MFA, and review privacy settings.</p><a href="{{ url_for('module', slug='password-security') }}">Learn password security →</a></article>
 </section>
 {% endblock %}
