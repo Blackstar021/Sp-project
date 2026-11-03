@@ -15,6 +15,6 @@
       <p>Correct answer: {{ item.options[item.answer] }}</p><p>{{ item.explanation }}</p>
     </article>{% endfor %}
   </section>
-  <div class="actions"><a class="button" href="{{ url_for('module',slug=module.slug) }}">Review lesson</a><a class="button secondary" href="{{ url_for('modules') }}">Other modules</a></div>
+  <div class="actions"><a class="button" href="{{ url_for('learn',slug=module.slug) }}">Review lesson</a><a class="button secondary" href="{{ url_for('modules') }}">Other modules</a></div>
 </article>
 {% endblock %}

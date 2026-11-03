@@ -1,4 +1,5 @@
 import hmac
+import html
 import json
 import os
 import re
@@ -7,14 +8,16 @@ import sqlite3
 import threading
 import time
 from collections import defaultdict, deque
-from datetime import timedelta
+from datetime import date, timedelta
 from functools import wraps
 from pathlib import Path
+from markupsafe import Markup
 from urllib.parse import unquote, urlsplit
 
 import click
 from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
+from lesson_seeds import LESSON_PAGES
 
 try:
     from dotenv import load_dotenv
@@ -134,6 +137,74 @@ def connect(database=DATABASE):
     return db
 
 
+def render_lesson_content(content):
+    """Render a small Markdown subset while escaping all author-provided HTML."""
+    def inline_format(text):
+        escaped = html.escape(text, quote=False)
+        return re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
+
+    blocks = []
+    paragraph = []
+    list_open = False
+    table_open = False
+
+    def close_list():
+        nonlocal list_open
+        if list_open:
+            blocks.append("</ul>")
+            list_open = False
+
+    def close_table():
+        nonlocal table_open
+        if table_open:
+            blocks.append("</tbody></table></div>")
+            table_open = False
+
+    def flush_paragraph():
+        if paragraph:
+            blocks.append(f"<p>{' '.join(inline_format(line) for line in paragraph)}</p>")
+            paragraph.clear()
+
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("|") and stripped.endswith("|"):
+            flush_paragraph()
+            close_list()
+            cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+            if all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells):
+                continue
+            if not table_open:
+                blocks.append('<div class="lesson-table-wrap"><table class="lesson-table"><tbody>')
+                table_open = True
+            blocks.append("<tr>" + "".join(f"<td>{inline_format(cell)}</td>" for cell in cells) + "</tr>")
+        else:
+            close_table()
+            if not stripped:
+                flush_paragraph()
+                close_list()
+            elif stripped.startswith("## "):
+                flush_paragraph()
+                close_list()
+                blocks.append(f"<h2>{inline_format(stripped[3:])}</h2>")
+            elif stripped.startswith("### "):
+                flush_paragraph()
+                close_list()
+                blocks.append(f"<h3>{inline_format(stripped[4:])}</h3>")
+            elif stripped.startswith(("- ", "* ")):
+                flush_paragraph()
+                if not list_open:
+                    blocks.append("<ul>")
+                    list_open = True
+                blocks.append(f"<li>{inline_format(stripped[2:])}</li>")
+            else:
+                close_list()
+                paragraph.append(stripped)
+    flush_paragraph()
+    close_list()
+    close_table()
+    return Markup("".join(blocks))
+
+
 def initialize_database(database=DATABASE):
     database.parent.mkdir(parents=True, exist_ok=True)
     db = connect(database)
@@ -170,6 +241,26 @@ def initialize_database(database=DATABASE):
                     completed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     PRIMARY KEY(user_id, module_id)
                 );
+                CREATE TABLE IF NOT EXISTS quiz_attempts (
+                    id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    module_id INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+                    score INTEGER NOT NULL, total_questions INTEGER NOT NULL,
+                    percentage REAL NOT NULL, taken_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE TABLE IF NOT EXISTS module_pages (
+                    id INTEGER PRIMARY KEY,
+                    module_id INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+                    page_number INTEGER NOT NULL CHECK(page_number IN (1, 2)),
+                    heading TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    UNIQUE(module_id, page_number)
+                );
+                CREATE TABLE IF NOT EXISTS lesson_progress (
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    module_id INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+                    completed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY(user_id, module_id)
+                );
             """)
             columns = {row["name"] for row in db.execute("PRAGMA table_info(users)")}
             if "role" not in columns:
@@ -187,6 +278,18 @@ def initialize_database(database=DATABASE):
                         db.execute(
                             "INSERT INTO questions (module_id,prompt,options,answer,explanation) VALUES (?,?,?,?,?)",
                             (module["id"], prompt, json.dumps(options), answer, explanation),
+                        )
+            for slug, pages in LESSON_PAGES.items():
+                module = db.execute("SELECT id FROM modules WHERE slug=?", (slug,)).fetchone()
+                if module and not db.execute(
+                        "SELECT 1 FROM module_pages WHERE module_id=? LIMIT 1", (module["id"],)
+                ).fetchone():
+                        db.executemany(
+                            "INSERT INTO module_pages (module_id,page_number,heading,content) VALUES (?,?,?,?)",
+                            [
+                                (module["id"], page_number, page["heading"], page["content"])
+                                for page_number, page in enumerate(pages, start=1)
+                            ],
                         )
             if db.execute("SELECT COUNT(*) FROM tips").fetchone()[0] == 0:
                 db.executemany("INSERT INTO tips (category,content) VALUES (?,?)", TIPS)
@@ -305,7 +408,19 @@ def create_app():
     @app.get("/")
     def index():
         rows = db().execute("SELECT * FROM modules ORDER BY title").fetchall()
-        return render_template("index.html", modules=[module_data(row) for row in rows])
+        account = user()
+        lessons_read = {
+            row["module_id"]
+            for row in db().execute(
+                "SELECT module_id FROM lesson_progress WHERE user_id=?",
+                (account["id"],),
+            )
+        } if account else set()
+        return render_template(
+            "index.html",
+            modules=[module_data(row) for row in rows],
+            lessons_read=lessons_read,
+        )
 
     @app.route("/register", methods=["GET", "POST"])
     def register():
@@ -387,7 +502,19 @@ def create_app():
     @app.get("/modules")
     def modules():
         rows = db().execute("SELECT * FROM modules ORDER BY title").fetchall()
-        return render_template("modules.html", modules=[module_data(row) for row in rows])
+        account = user()
+        lessons_read = {
+            row["module_id"]
+            for row in db().execute(
+                "SELECT module_id FROM lesson_progress WHERE user_id=?",
+                (account["id"],),
+            )
+        } if account else set()
+        return render_template(
+            "modules.html",
+            modules=[module_data(row) for row in rows],
+            lessons_read=lessons_read,
+        )
 
     @app.get("/modules/<slug>")
     def module(slug):
@@ -395,6 +522,48 @@ def create_app():
         if row is None:
             abort(404)
         return render_template("module.html", module=module_data(row))
+
+    @app.get("/learn/<slug>")
+    def learn(slug):
+        module_row = db().execute("SELECT * FROM modules WHERE slug=?", (slug,)).fetchone()
+        if module_row is None:
+            abort(404)
+        try:
+            page_number = int(request.args.get("page", "1"))
+        except ValueError:
+            abort(404)
+        if page_number not in (1, 2):
+            abort(404)
+        lesson_page = db().execute(
+            "SELECT heading,content FROM module_pages WHERE module_id=? AND page_number=?",
+            (module_row["id"], page_number),
+        ).fetchone()
+        if lesson_page is None:
+            abort(404)
+
+        account = user()
+        lesson_completed = False
+        if account:
+            lesson_completed = db().execute(
+                "SELECT 1 FROM lesson_progress WHERE user_id=? AND module_id=?",
+                (account["id"], module_row["id"]),
+            ).fetchone() is not None
+            if page_number == 2 and not lesson_completed:
+                db().execute(
+                    "INSERT OR IGNORE INTO lesson_progress (user_id,module_id) VALUES (?,?)",
+                    (account["id"], module_row["id"]),
+                )
+                db().commit()
+                lesson_completed = True
+
+        return render_template(
+            "lesson.html",
+            module=module_data(module_row),
+            lesson_page=lesson_page,
+            page_number=page_number,
+            lesson_completed=lesson_completed,
+            lesson_html=render_lesson_content(lesson_page["content"]),
+        )
 
     @app.get("/tips")
     def tips():
@@ -429,6 +598,8 @@ def create_app():
         account = user()
         db().execute("INSERT INTO quiz_scores (user_id,module_id,score,total) VALUES (?,?,?,?)",
                      (account["id"], item["id"], score, len(questions)))
+        db().execute("INSERT INTO quiz_attempts (user_id,module_id,score,total_questions,percentage,taken_at) VALUES (?,?,?,?,?,?)",
+                     (account["id"], item["id"], score, len(questions), (score / len(questions)) * 100, time.strftime('%Y-%m-%d %H:%M:%S')))
         db().execute("INSERT INTO progress (user_id,module_id) VALUES (?,?) ON CONFLICT(user_id,module_id) DO UPDATE SET completed_at=CURRENT_TIMESTAMP",
                      (account["id"], item["id"]))
         db().commit()
@@ -447,9 +618,23 @@ def create_app():
             FROM quiz_scores JOIN modules ON modules.id=quiz_scores.module_id
             WHERE quiz_scores.user_id=? ORDER BY quiz_scores.id DESC LIMIT 25""", (account["id"],)).fetchall()
         done = {r["module_id"] for r in db().execute("SELECT module_id FROM progress WHERE user_id=?", (account["id"],))}
+        lessons_read = {
+            r["module_id"]
+            for r in db().execute("SELECT module_id FROM lesson_progress WHERE user_id=?", (account["id"],))
+        }
         rows = db().execute("SELECT * FROM modules ORDER BY title").fetchall()
+        latest_scores = {}
+        for score in db().execute(
+            "SELECT module_id,score,total FROM quiz_scores WHERE user_id=? ORDER BY id DESC",
+            (account["id"],),
+        ):
+            latest_scores.setdefault(score["module_id"], dict(score))
+        module_items = [module_data(row) for row in rows]
+        for item in module_items:
+            item["latest_score"] = latest_scores.get(item["id"])
         return render_template("dashboard.html", user=account, scores=scores,
-                               completed=done, modules=[module_data(r) for r in rows])
+                               completed=done, lessons_read=lessons_read,
+                               modules=module_items)
 
     @app.route("/admin/users", methods=["GET"])
     def admin_users():
@@ -539,6 +724,165 @@ def create_app():
             flash("The user account could not be deleted.", "error")
         return redirect(url_for("admin_users"))
 
+    def quiz_result_filters():
+        conditions = []
+        params = []
+        module_slug = request.args.get("module", "").strip()
+        search = request.args.get("search", "").strip()
+        date_start = request.args.get("date_start", "").strip()
+        date_end = request.args.get("date_end", "").strip()
+
+        if module_slug:
+            conditions.append("m.slug = ?")
+            params.append(module_slug)
+        if search:
+            conditions.append("(LOWER(u.name) LIKE LOWER(?) OR LOWER(u.email) LIKE LOWER(?))")
+            params.extend((f"%{search}%", f"%{search}%"))
+        for value in (date_start, date_end):
+            if value:
+                if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+                    abort(400, "Dates must use the YYYY-MM-DD format.")
+                try:
+                    date.fromisoformat(value)
+                except ValueError:
+                    abort(400, "Dates must use the YYYY-MM-DD format.")
+        if date_start and date_end and date_start > date_end:
+            abort(400, "The start date must not be after the end date.")
+        if date_start:
+            conditions.append("qa.taken_at >= ?")
+            params.append(f"{date_start} 00:00:00")
+        if date_end:
+            conditions.append("qa.taken_at < ?")
+            params.append(f"{date.fromisoformat(date_end) + timedelta(days=1)} 00:00:00")
+
+        where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
+        return where_clause, params, module_slug, search, date_start, date_end
+
+    def quiz_results_admin_only():
+        account = user()
+        if account is None or account["role"] != "admin":
+            abort(403)
+
+    @app.get("/admin/quiz-results")
+    def admin_quiz_results():
+        quiz_results_admin_only()
+        connection = db()
+        where_clause, params, module_slug, search, date_start, date_end = quiz_result_filters()
+        page = max(request.args.get("page", 1, type=int) or 1, 1)
+        per_page = 10
+        joins = "FROM quiz_attempts qa JOIN users u ON qa.user_id = u.id JOIN modules m ON qa.module_id = m.id"
+
+        total_attempts = connection.execute(
+            f"SELECT COUNT(*) {joins} {where_clause}", params
+        ).fetchone()[0]
+        summary = connection.execute(
+            f"""SELECT COALESCE(AVG(qa.percentage), 0),
+                       COUNT(DISTINCT qa.user_id)
+                {joins} {where_clause}""",
+            params,
+        ).fetchone()
+        total_pages = max((total_attempts + per_page - 1) // per_page, 1)
+        page = min(page, total_pages)
+        offset = (page - 1) * per_page
+        attempts = connection.execute(
+            f"""SELECT qa.id, qa.user_id AS student_id, qa.score, qa.total_questions,
+                       qa.percentage, qa.taken_at, u.name AS student_name,
+                       u.email AS student_email, m.title AS module_title
+                {joins} {where_clause}
+                ORDER BY qa.taken_at DESC, qa.id DESC
+                LIMIT ? OFFSET ?""",
+            params + [per_page, offset],
+        ).fetchall()
+        modules = connection.execute("SELECT id, slug, title FROM modules ORDER BY title").fetchall()
+
+        return render_template(
+            "admin_quiz_results.html",
+            attempts=attempts,
+            total_attempts=total_attempts,
+            avg_score=round(summary[0], 1),
+            students_count=summary[1],
+            page=page,
+            per_page=per_page,
+            total_pages=total_pages,
+            modules=modules,
+            selected_module=module_slug,
+            search=search,
+            date_start=date_start,
+            date_end=date_end,
+            csrf_token=csrf_token(),
+        )
+
+    @app.route("/admin/quiz-results/view/<int:student_id>", methods=["GET"])
+    def admin_quiz_view_student(student_id):
+        quiz_results_admin_only()
+        connection = db()
+        student = connection.execute(
+            "SELECT id, name, email FROM users WHERE id=?", (student_id,)
+        ).fetchone()
+        if student is None:
+            abort(404)
+        attempts = connection.execute(
+            "SELECT qa.score, qa.total_questions, qa.percentage, qa.taken_at, m.title AS module_title "
+            "FROM quiz_attempts qa "
+            "JOIN modules m ON qa.module_id = m.id "
+            "WHERE qa.user_id = ? "
+            "ORDER BY qa.taken_at DESC, qa.id DESC",
+            (student_id,),
+        ).fetchall()
+        average = connection.execute(
+            "SELECT COALESCE(AVG(percentage), 0) FROM quiz_attempts WHERE user_id=?",
+            (student_id,),
+        ).fetchone()[0]
+        return render_template(
+            "admin_quiz_view_student.html",
+            attempts=attempts,
+            student=student,
+            avg_score=round(average, 1),
+        )
+
+    @app.route("/admin/quiz-results/export", methods=["GET"])
+    def admin_quiz_results_export():
+        import csv
+        import io
+        from flask import Response
+
+        quiz_results_admin_only()
+        connection = db()
+        where_clause, params, *_filters = quiz_result_filters()
+        attempts = connection.execute(
+            f"""SELECT u.name, u.email, m.title AS module_title, qa.score,
+                       qa.total_questions, qa.percentage, qa.taken_at
+                FROM quiz_attempts qa
+                JOIN users u ON qa.user_id = u.id
+                JOIN modules m ON qa.module_id = m.id
+                {where_clause}
+                ORDER BY qa.taken_at DESC, qa.id DESC""",
+            params,
+        ).fetchall()
+
+        def csv_safe(value):
+            text = str(value)
+            formula_value = text.lstrip(" \t\r\n")
+            return f"'{text}" if formula_value.startswith(("=", "+", "-", "@")) else text
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["Student name", "Email", "Module", "Score", "Percentage", "Date taken"])
+        for a in attempts:
+            writer.writerow([
+                csv_safe(a["name"]),
+                csv_safe(a["email"]),
+                csv_safe(a["module_title"]),
+                f"{a['score']}/{a['total_questions']}",
+                csv_safe(f"{a['percentage']:.1f}%"),
+                csv_safe(a["taken_at"]),
+            ])
+        return Response(
+            output.getvalue(),
+            mimetype="text/csv",
+            headers={"Content-Disposition": "attachment; filename=quiz_results.csv"},
+        )
+
     @app.route("/admin", methods=["GET", "POST"])
     def admin():
         denied = admin_required()
@@ -558,21 +902,50 @@ def create_app():
                     examples = [x.strip() for x in request.form.get("examples", "").splitlines() if x.strip()]
                     takeaways = [x.strip() for x in request.form.get("takeaways", "").splitlines() if x.strip()]
                     module_id = request.form.get("id", "").strip()
+                    page_data = [
+                        (
+                            request.form.get(f"page_{page_number}_heading", "").strip(),
+                            request.form.get(f"page_{page_number}_content", "").strip(),
+                        )
+                        for page_number in (1, 2)
+                    ]
                     if module_id and (not module_id.isdecimal() or int(module_id) < 1):
                         flash("The module id is invalid.", "error")
                         return redirect(url_for("admin"))
-                    if not title or len(title) > 120 or not summary or not lesson or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", slug):
-                        flash("Enter a title, description, lesson, and URL-safe unique slug.", "error")
+                    if (
+                        not title or len(title) > 120 or not summary or not lesson
+                        or any(not heading or not content for heading, content in page_data)
+                        or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", slug)
+                    ):
+                        flash("Enter a title, description, lesson, two page headings and contents, and URL-safe unique slug.", "error")
                     elif db().execute("SELECT 1 FROM modules WHERE slug=? AND id != COALESCE(NULLIF(?,''),'0')", (slug,module_id)).fetchone():
                         flash("That module URL is already in use.", "error")
                     elif module_id:
                         db().execute("UPDATE modules SET slug=?,title=?,summary=?,lesson=?,examples=?,takeaways=? WHERE id=?",
                                      (slug,title,summary,lesson,json.dumps(examples),json.dumps(takeaways),module_id))
+                        db().executemany(
+                            """INSERT INTO module_pages (module_id,page_number,heading,content)
+                               VALUES (?,?,?,?)
+                               ON CONFLICT(module_id,page_number)
+                               DO UPDATE SET heading=excluded.heading,content=excluded.content""",
+                            [
+                                (module_id, page_number, heading, content)
+                                for page_number, (heading, content) in enumerate(page_data, start=1)
+                            ],
+                        )
                         db().commit()
                         flash("Module saved.", "success")
                     else:
                         db().execute("INSERT INTO modules (slug,title,summary,lesson,examples,takeaways) VALUES (?,?,?,?,?,?)",
                                      (slug,title,summary,lesson,json.dumps(examples),json.dumps(takeaways)))
+                        new_module_id = db().execute("SELECT last_insert_rowid()").fetchone()[0]
+                        db().executemany(
+                            "INSERT INTO module_pages (module_id,page_number,heading,content) VALUES (?,?,?,?)",
+                            [
+                                (new_module_id, page_number, heading, content)
+                                for page_number, (heading, content) in enumerate(page_data, start=1)
+                            ],
+                        )
                         db().commit()
                         flash("Module saved.", "success")
                 elif action == "module_delete":
@@ -633,6 +1006,14 @@ def create_app():
             return redirect(url_for("admin"))
 
         modules = [module_data(r) for r in db().execute("SELECT * FROM modules ORDER BY title")]
+        for item in modules:
+            pages = db().execute(
+                "SELECT page_number,heading,content FROM module_pages WHERE module_id=? ORDER BY page_number",
+                (item["id"],),
+            ).fetchall()
+            item["lesson_pages"] = {
+                page["page_number"]: dict(page) for page in pages
+            }
         users = db().execute("SELECT id,name,email,role,created_at FROM users ORDER BY id").fetchall()
         tips = db().execute("SELECT * FROM tips ORDER BY category,id").fetchall()
         questions = []

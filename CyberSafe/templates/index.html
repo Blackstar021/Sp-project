@@ -12,9 +12,9 @@
   <h2>Explore the learning path</h2>
   <div class="grid">{% for module in modules %}
     <article class="card">
-      <span class="small">{{ module.question_count }}-question quiz</span>
+      <span class="small">{{ module.question_count }}-question quiz · 2 pages · 6 min read</span>
       <h3>{{ module.title }}</h3><p>{{ module.summary }}</p>
-      <a href="{{ url_for('module', slug=module.slug) }}">Explore lesson →</a>
+      <a href="{{ url_for('learn', slug=module.slug) }}">{{ "✓ Lesson completed" if module.id in lessons_read else "Explore lesson →" }}</a>
       {% if module.question_count %}
       <p class="actions">
         <a class="button secondary" href="{{ url_for('quiz', slug=module.slug) }}">
@@ -30,6 +30,6 @@
 </section>
 <section class="section grid">
   <article class="panel"><h2>Spot the phishing clues</h2><p>Practice identifying pressure tactics, suspicious links, and other warning signs.</p><a class="button secondary" href="{{ url_for('phishing_activity') }}">Try the activity</a></article>
-  <article class="panel"><h2>Small habits, big impact</h2><p>Use strong unique passwords, enable MFA, and review privacy settings.</p><a href="{{ url_for('module', slug='password-security') }}">Learn password security →</a></article>
+  <article class="panel"><h2>Small habits, big impact</h2><p>Use strong unique passwords, enable MFA, and review privacy settings.</p><a href="{{ url_for('learn', slug='password-security') }}">Learn password security →</a></article>
 </section>
 {% endblock %}

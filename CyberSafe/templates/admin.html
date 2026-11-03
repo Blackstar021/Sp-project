@@ -23,6 +23,12 @@
 </section>
 
 <section class="admin-section">
+  <h2>Quiz results</h2>
+  <p>Review student scores, filter attempts, and export results.</p>
+  <p><a class="button secondary" href="{{ url_for('admin_quiz_results') }}">View quiz results</a></p>
+</section>
+
+<section class="admin-section">
   <h2>Learning modules</h2><p class="small">Examples and takeaways use one item per line. Leave slug blank to generate it from title.</p>
   <details class="editor"><summary>Add a learning module</summary>
     <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="module_save">
@@ -30,17 +36,29 @@
       <label class="field">Title<input name="title" maxlength="120" required></label>
       <label class="field">Description<input name="summary" maxlength="500" required></label>
       <label class="field">Lesson<textarea name="lesson" required></textarea></label>
+      <p class="small">Lesson pages support paragraphs, ## subheadings, - bullet lists, and **bold text**. HTML is shown as text.</p>
+      <div class="manage-grid">
+        <div><label class="field">Page 1 heading<input name="page_1_heading" value="Why it matters" required></label><label class="field">Page 1 content<textarea name="page_1_content" rows="12" required></textarea></label></div>
+        <div><label class="field">Page 2 heading<input name="page_2_heading" value="Warning signs" required></label><label class="field">Page 2 content<textarea name="page_2_content" rows="12" required></textarea></label></div>
+      </div>
       <div class="manage-grid"><label class="field">Examples<textarea name="examples"></textarea></label><label class="field">Key takeaways<textarea name="takeaways"></textarea></label></div>
       <button type="submit">Add module</button>
     </form>
   </details>
   {% for item in modules %}
   <details class="editor"><summary>Edit {{ item.title }} ({{ item.question_count }} questions)</summary>
+    {% set page1 = item.lesson_pages.get(1, {}) %}
+    {% set page2 = item.lesson_pages.get(2, {}) %}
     <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="module_save"><input type="hidden" name="id" value="{{ item.id }}">
       <label class="field">URL slug<input name="slug" value="{{ item.slug }}" required></label>
       <label class="field">Title<input name="title" maxlength="120" value="{{ item.title }}" required></label>
       <label class="field">Description<input name="summary" maxlength="500" value="{{ item.summary }}" required></label>
       <label class="field">Lesson<textarea name="lesson" required>{{ item.lesson }}</textarea></label>
+      <p class="small">Lesson pages support paragraphs, ## subheadings, - bullet lists, and **bold text**. HTML is shown as text.</p>
+      <div class="manage-grid">
+        <div><label class="field">Page 1 heading<input name="page_1_heading" value="{{ page1.get('heading', 'Why it matters') }}" required></label><label class="field">Page 1 content<textarea name="page_1_content" rows="12" required>{{ page1.get('content', '') }}</textarea></label></div>
+        <div><label class="field">Page 2 heading<input name="page_2_heading" value="{{ page2.get('heading', 'Warning signs') }}" required></label><label class="field">Page 2 content<textarea name="page_2_content" rows="12" required>{{ page2.get('content', '') }}</textarea></label></div>
+      </div>
       <div class="manage-grid"><label class="field">Examples<textarea name="examples">{{ item.examples|join('\n') }}</textarea></label><label class="field">Key takeaways<textarea name="takeaways">{{ item.takeaways|join('\n') }}</textarea></label></div>
       <button type="submit">Save module</button>
     </form>

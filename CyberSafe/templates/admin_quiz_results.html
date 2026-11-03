@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Quiz results | CyberSafe{% endblock %}
+{% block head %}
+<style>
+  .admin-section { margin:28px 0; padding:22px; border:1px solid #28313f; border-radius:17px; background:#10151f; }
+  .quiz-filters { background:#0c111a; padding:16px; border-radius:10px; margin-bottom:16px; }
+  .filter-row { display:flex; flex-wrap:wrap; gap:12px; align-items:end; }
+  .filter-row label { display:grid; gap:6px; color:#c3ccd8; font-size:.9rem; }
+  .filter-row select,.filter-row input { min-height:38px; padding:6px 10px; border:1px solid #303948; border-radius:8px; background:#0c111a; color:#f7f9fc; font:inherit; }
+  .filter-row input[type="search"] { width:min(300px, 100%); }
+  .table-wrap { overflow-x:auto; }
+  table { width:100%; min-width:850px; border-collapse:collapse; text-align:left; }
+  th,td { padding:10px; border-bottom:1px solid #303948; color:#c3ccd8; }
+  .score-badge { font-weight:700; white-space:nowrap; }
+  .score-good { color:#9be0b6; }
+  .score-mid { color:#fdcb6e; }
+  .score-low { color:#ff858d; }
+  .summary { display:flex; flex-wrap:wrap; justify-content:space-between; gap:10px 24px; margin-top:16px; padding:14px; border-radius:8px; background:#0c111a; color:#c3ccd8; }
+  .view-btn { min-height:32px; padding:0 12px; font-size:.85rem; }
+  .pagination { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:16px; }
+  @media(max-width:600px) {
+    .admin-section { padding:16px; }
+    .filter-row { align-items:stretch; }
+    .filter-row label,.filter-row select,.filter-row input[type="search"] { width:100%; max-width:none; }
+  }
+</style>
+{% endblock %}
+{% block content %}
+<span class="eyebrow">Quiz results</span>
+<h1>Quiz results</h1>
+<p class="lead">Review quiz attempt history and student performance.</p>
+
+<section class="admin-section" aria-label="Quiz results">
+  <div class="quiz-filters">
+    <form method="get" action="{{ url_for('admin_quiz_results') }}" class="filter-row">
+      <label>Module
+        <select name="module">
+          <option value="">All modules</option>
+          {% for m in modules %}
+          <option value="{{ m.slug }}" {% if selected_module == m.slug %}selected{% endif %}>{{ m.title }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Search student
+        <input type="search" name="search" placeholder="Name or email" value="{{ search }}" autocomplete="off">
+      </label>
+      <label>Date from
+        <input type="date" name="date_start" value="{{ date_start }}">
+      </label>
+      <label>Date to
+        <input type="date" name="date_end" value="{{ date_end }}">
+      </label>
+      <button type="submit" class="button secondary">Apply filters</button>
+      {% if selected_module or search or date_start or date_end %}
+      <a class="button secondary" href="{{ url_for('admin_quiz_results') }}">Clear filters</a>
+      {% endif %}
+    </form>
+  </div>
+
+  <a class="button secondary" href="{{ url_for('admin_quiz_results_export', module=selected_module, search=search, date_start=date_start, date_end=date_end) }}">Export CSV</a>
+
+  <div class="summary" aria-label="Filtered quiz summary">
+    <span>Total attempts: {{ total_attempts }}</span>
+    <span>Average score: {{ avg_score }}%</span>
+    <span>Students assessed: {{ students_count }}</span>
+  </div>
+
+  {% if attempts %}
+  <div class="table-wrap" style="margin-top:16px;">
+    <table>
+      <thead>
+        <tr>
+          <th>Student name</th>
+          <th>Email</th>
+          <th>Module</th>
+          <th>Score</th>
+          <th>Percentage</th>
+          <th>Date taken</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in attempts %}
+        <tr>
+          <td>{{ a.student_name }}</td>
+          <td>{{ a.student_email }}</td>
+          <td>{{ a.module_title }}</td>
+          <td>{{ a.score }}/{{ a.total_questions }}</td>
+          <td>
+            <span class="score-badge {% if a.percentage >= 80 %}score-good{% elif a.percentage >= 50 %}score-mid{% else %}score-low{% endif %}">
+              {{ a.percentage|round(1) }}%
+            </span>
+          </td>
+          <td>{{ a.taken_at }}</td>
+          <td><a class="button secondary view-btn" href="{{ url_for('admin_quiz_view_student', student_id=a.student_id) }}">View</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted" style="margin-top:18px;">No quiz attempts yet.</p>
+  {% endif %}
+
+  {% if total_pages > 1 %}
+  <nav class="pagination" aria-label="Quiz results pagination">
+    {% if page > 1 %}
+    <a href="{{ url_for('admin_quiz_results', page=page-1, module=selected_module, search=search, date_start=date_start, date_end=date_end) }}" class="button secondary">Previous</a>
+    {% endif %}
+    <span class="muted">Page {{ page }} of {{ total_pages }}</span>
+    {% if page < total_pages %}
+    <a href="{{ url_for('admin_quiz_results', page=page+1, module=selected_module, search=search, date_start=date_start, date_end=date_end) }}" class="button secondary">Next</a>
+    {% endif %}
+  </nav>
+  {% endif %}
+</section>
+{% endblock %}

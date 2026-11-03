@@ -11,7 +11,7 @@
 {% endblock %}
 {% block content %}
 <article class="narrow">
-  <a href="{{ url_for('module',slug=module.slug) }}">← Back to {{ module.title }}</a>
+  <a href="{{ url_for('learn',slug=module.slug) }}">← Back to {{ module.title }}</a>
   <header class="section"><span class="eyebrow">Knowledge check</span><h1>{{ module.title }} quiz</h1><p class="lead">Choose one answer per question. Feedback appears as you answer.</p></header>
   {% if not questions %}
   <section class="panel"><p>Quiz questions are being prepared for this lesson. You can review the lesson or choose another module.</p><a href="{{ url_for('modules') }}">Browse modules</a></section>

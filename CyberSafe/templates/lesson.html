@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}{{ module.title }} - Page {{ page_number }} | CyberSafe{% endblock %}
+{% block head %}
+<style>
+  .lesson { width:min(700px,100%); margin:0 auto; }
+  .lesson-meta { display:flex; flex-wrap:wrap; gap:8px 18px; color:#aab4c2; }
+  .reading-progress { height:10px; overflow:hidden; border-radius:999px; background:#202a38; }
+  .reading-progress span { display:block; height:100%; border-radius:inherit; background:#4b9bf0; transition:width .2s ease; }
+  .lesson-content { margin-top:24px; padding:clamp(20px,5vw,36px); border:1px solid #28313f; border-radius:17px; background:#10151f; color:#d5dce6; font-size:1.08rem; line-height:1.85; }
+  .lesson-content h2 { margin:30px 0 8px; color:#f4f7fb; font-size:1.3rem; }
+  .lesson-content h3 { margin:24px 0 8px; color:#f4f7fb; }
+  .lesson-content p { margin:0 0 18px; color:#c3ccd8; line-height:1.85; }
+  .lesson-content ul { padding-left:24px; margin:0 0 20px; }
+  .lesson-content li { margin:8px 0; }
+  .lesson-table-wrap { overflow-x:auto; margin:18px 0; }
+  .lesson-table { width:100%; min-width:420px; border-collapse:collapse; text-align:left; font-size:.96rem; line-height:1.6; }
+  .lesson-table td { width:50%; padding:12px; border:1px solid #303948; vertical-align:top; }
+  .lesson-table tr:first-child td { color:#f4f7fb; font-weight:750; background:#182131; }
+  .lesson-actions { display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px; margin-top:22px; }
+  .quiz-cta { min-height:54px; padding:0 24px; font-size:1.05rem; }
+  @media(max-width:600px) {
+    .lesson-content { font-size:1rem; line-height:1.75; padding:20px; }
+    .lesson-actions > * { flex:1 1 100%; }
+  }
+</style>
+{% endblock %}
+{% block content %}
+<article class="lesson">
+  <a href="{{ url_for('modules') }}">← All modules</a>
+  <header class="section">
+    <span class="eyebrow">{{ module.title }}</span>
+    <h1>{{ module.title }}</h1>
+    <div class="lesson-meta"><span>Page {{ page_number }} of 2</span><span>About 6 min read</span></div>
+    <div class="reading-progress" role="progressbar" aria-label="Lesson reading progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ page_number * 50 }}" style="margin-top:14px;">
+      <span style="width:{{ page_number * 50 }}%;"></span>
+    </div>
+    {% if lesson_completed %}<p class="small">✓ Lesson completed</p>{% elif not current_user %}<p class="small">Sign in to save lesson completion to My progress.</p>{% endif %}
+  </header>
+
+  <section class="lesson-content">
+    <h2>{{ lesson_page.heading }}</h2>
+    {{ lesson_html }}
+  </section>
+
+  <nav class="lesson-actions" aria-label="Lesson pages">
+    {% if page_number == 2 %}
+    <a class="button secondary" href="{{ url_for('learn', slug=module.slug, page=1) }}">← Previous</a>
+    {% else %}
+    <span></span>
+    {% endif %}
+    {% if page_number == 1 %}
+    <a class="button" href="{{ url_for('learn', slug=module.slug, page=2) }}">Next page →</a>
+    {% else %}
+    <a class="button quiz-cta" href="{{ url_for('quiz', slug=module.slug) }}">
+      {% if not current_user %}Sign in to take the quiz{% else %}Take the quiz{% endif %}
+    </a>
+    {% endif %}
+  </nav>
+  {% if page_number == 1 and module.question_count %}
+  <p class="small" style="text-align:right;"><a href="{{ url_for('quiz', slug=module.slug) }}">Take the quiz any time →</a></p>
+  {% endif %}
+</article>
+{% endblock %}

@@ -5,9 +5,9 @@
 <p class="lead">Short lessons, practical examples, takeaways, and a quiz for each topic.</p>
 <div class="grid section">{% for module in modules %}
   <article class="card">
-    <span class="small">{{ module.question_count }}-question quiz</span>
+    <span class="small">{{ module.question_count }}-question quiz · 2 pages · 6 min read</span>
     <h2>{{ module.title }}</h2><p>{{ module.summary }}</p>
-    <a href="{{ url_for('module',slug=module.slug) }}">Open lesson →</a>
+    <a href="{{ url_for('learn',slug=module.slug) }}">{{ "✓ Lesson completed" if module.id in lessons_read else "Explore lesson →" }}</a>
     {% if module.question_count %}
     <p class="actions"><a class="button secondary" href="{{ url_for('quiz',slug=module.slug) }}">
       {% if not current_user %}Sign in to take the quiz{% else %}Take the quiz{% endif %}

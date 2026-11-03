@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Quiz results - {{ student.name }} | CyberSafe{% endblock %}
+{% block head %}
+<style>
+  .admin-section { margin:28px 0; padding:22px; border:1px solid #28313f; border-radius:17px; background:#10151f; }
+  .table-wrap { overflow-x:auto; }
+  table { width:100%; min-width:560px; border-collapse:collapse; text-align:left; }
+  th,td { padding:10px; border-bottom:1px solid #303948; color:#c3ccd8; }
+  .score-good { color:#9be0b6; }
+  .score-mid { color:#fdcb6e; }
+  .score-low { color:#ff858d; }
+  @media(max-width:600px) { .admin-section { padding:16px; } }
+</style>
+{% endblock %}
+{% block content %}
+<span class="eyebrow">Quiz results</span>
+<h1>{{ student.name }}</h1>
+<p class="lead">{{ student.email }}</p>
+<p><a class="button secondary" href="{{ url_for('admin_quiz_results') }}">Back to quiz results</a></p>
+
+<section class="admin-section" aria-label="Student quiz attempts">
+  {% if attempts %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Module</th><th>Score</th><th>Percentage</th><th>Date taken</th></tr>
+      </thead>
+      <tbody>
+        {% for a in attempts %}
+        <tr>
+          <td>{{ a.module_title }}</td>
+          <td>{{ a.score }}/{{ a.total_questions }}</td>
+          <td>
+            <span class="{% if a.percentage >= 80 %}score-good{% elif a.percentage >= 50 %}score-mid{% else %}score-low{% endif %}">
+              {{ a.percentage|round(1) }}%
+            </span>
+          </td>
+          <td>{{ a.taken_at }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted">Total attempts: {{ attempts|length }} · Average score: {{ avg_score }}%</p>
+  {% else %}
+  <p class="muted">No quiz attempts found for this student.</p>
+  {% endif %}
+</section>
+{% endblock %}
