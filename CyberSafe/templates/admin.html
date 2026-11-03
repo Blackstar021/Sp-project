@@ -29,6 +29,91 @@
 </section>
 
 <section class="admin-section">
+  <h2>Phishing lab scenarios</h2>
+  <p class="small">Use fictional addresses and .invalid domains only. Links are always displayed as inert text. Red flags must match clue-part labels.</p>
+  <details class="editor">
+    <summary>Add a scenario</summary>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="action" value="phishing_scenario_save">
+      <div class="manage-grid">
+        <label class="field">Scenario type
+          <select name="type">{% for value in ['email','sms','chat','login','qr'] %}<option value="{{ value }}">{{ value|upper }}</option>{% endfor %}</select>
+        </label>
+        <label class="field">Difficulty
+          <select name="difficulty">{% for value in ['easy','medium','hard'] %}<option value="{{ value }}">{{ value|title }}</option>{% endfor %}</select>
+        </label>
+        <label class="field">Interaction
+          <select name="interaction_type">{% for value in ['classify','spot','action','hover'] %}<option value="{{ value }}">{{ value|title }}</option>{% endfor %}</select>
+        </label>
+        <label class="field">Phishing?
+          <select name="is_phishing"><option value="1">Phishing</option><option value="0">Legitimate</option></select>
+        </label>
+      </div>
+      <label class="field">Sender<input name="sender" maxlength="240" required placeholder="Office <notice@school.example.invalid>"></label>
+      <label class="field">Subject or title<input name="subject" maxlength="240" required></label>
+      <label class="field">Message body<textarea name="body" rows="5" required></textarea></label>
+      <label class="field">Prompt<input name="prompt" required value="Phishing or legitimate?"></label>
+      <label class="field">Clue parts (one per line: label | text)<textarea name="clue_parts" rows="4" required placeholder="Sender address | notice@school.example.invalid&#10;Message | Your account needs a review"></textarea></label>
+      <label class="field">Red flags (one matching clue-part label per line)<textarea name="red_flags" rows="3"></textarea></label>
+      <label class="field">Answer options (one per line; action mode only)<textarea name="options" rows="4"></textarea></label>
+      <label class="field">Correct action<input name="correct_action" required></label>
+      <label class="field">Explanation<textarea name="explanation" rows="3" required></textarea></label>
+      <div class="manage-grid">
+        <label class="field">Inert link text<input name="link_text" maxlength="240"></label>
+        <label class="field">Fictional destination (.invalid only)<input name="link_destination" maxlength="500" placeholder="https://school.example.invalid/review"></label>
+      </div>
+      <button type="submit">Add scenario</button>
+    </form>
+  </details>
+  {% for scenario in phishing_scenarios %}
+  <details class="editor">
+    <summary>Edit {{ scenario.type|upper }} · {{ scenario.difficulty|title }} · {{ scenario.subject }}</summary>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="action" value="phishing_scenario_save">
+      <input type="hidden" name="id" value="{{ scenario.id }}">
+      <div class="manage-grid">
+        <label class="field">Scenario type
+          <select name="type">{% for value in ['email','sms','chat','login','qr'] %}<option value="{{ value }}" {% if scenario.type == value %}selected{% endif %}>{{ value|upper }}</option>{% endfor %}</select>
+        </label>
+        <label class="field">Difficulty
+          <select name="difficulty">{% for value in ['easy','medium','hard'] %}<option value="{{ value }}" {% if scenario.difficulty == value %}selected{% endif %}>{{ value|title }}</option>{% endfor %}</select>
+        </label>
+        <label class="field">Interaction
+          <select name="interaction_type">{% for value in ['classify','spot','action','hover'] %}<option value="{{ value }}" {% if scenario.interaction_type == value %}selected{% endif %}>{{ value|title }}</option>{% endfor %}</select>
+        </label>
+        <label class="field">Phishing?
+          <select name="is_phishing"><option value="1" {% if scenario.is_phishing %}selected{% endif %}>Phishing</option><option value="0" {% if not scenario.is_phishing %}selected{% endif %}>Legitimate</option></select>
+        </label>
+      </div>
+      <label class="field">Sender<input name="sender" maxlength="240" value="{{ scenario.sender }}" required></label>
+      <label class="field">Subject or title<input name="subject" maxlength="240" value="{{ scenario.subject }}" required></label>
+      <label class="field">Message body<textarea name="body" rows="5" required>{{ scenario.body }}</textarea></label>
+      <label class="field">Prompt<input name="prompt" value="{{ scenario.prompt }}" required></label>
+      <label class="field">Clue parts (one per line: label | text)<textarea name="clue_parts" rows="4" required>{% for part in scenario.clue_parts %}{{ part.label }} | {{ part.text }}{% if not loop.last %}
+{% endif %}{% endfor %}</textarea></label>
+      <label class="field">Red flags (one matching clue-part label per line)<textarea name="red_flags" rows="3">{{ scenario.red_flags|join('\n') }}</textarea></label>
+      <label class="field">Answer options (one per line; action mode only)<textarea name="options" rows="4">{{ scenario.options|join('\n') }}</textarea></label>
+      <label class="field">Correct action<input name="correct_action" value="{{ scenario.correct_action }}" required></label>
+      <label class="field">Explanation<textarea name="explanation" rows="3" required>{{ scenario.explanation }}</textarea></label>
+      <div class="manage-grid">
+        <label class="field">Inert link text<input name="link_text" maxlength="240" value="{{ scenario.link_text }}"></label>
+        <label class="field">Fictional destination (.invalid only)<input name="link_destination" maxlength="500" value="{{ scenario.link_destination }}"></label>
+      </div>
+      <button type="submit">Save scenario</button>
+    </form>
+    <form method="post" onsubmit="return confirm('Delete this phishing lab scenario?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="action" value="phishing_scenario_delete">
+      <input type="hidden" name="id" value="{{ scenario.id }}">
+      <button class="danger" type="submit">Delete scenario</button>
+    </form>
+  </details>
+  {% endfor %}
+</section>
+
+<section class="admin-section">
   <h2>Learning modules</h2><p class="small">Examples and takeaways use one item per line. Leave slug blank to generate it from title.</p>
   <details class="editor"><summary>Add a learning module</summary>
     <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="module_save">

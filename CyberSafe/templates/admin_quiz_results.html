@@ -114,4 +114,28 @@
   </nav>
   {% endif %}
 </section>
+<section class="admin-section" aria-label="Phishing lab attempts">
+  <h2>Phishing lab attempts</h2>
+  <p>Most recent completed lab attempts, including guest attempts when no student account was signed in.</p>
+  {% if phishing_attempts %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Student</th><th>Email</th><th>Score</th><th>Difficulty</th><th>Date taken</th></tr></thead>
+      <tbody>
+      {% for attempt in phishing_attempts %}
+        <tr>
+          <td>{{ attempt.student_name or 'Guest' }}</td>
+          <td>{{ attempt.student_email or '—' }}</td>
+          <td>{{ attempt.score }}/{{ attempt.total }}</td>
+          <td>{{ attempt.difficulty|title }}</td>
+          <td>{{ attempt.taken_at }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">No phishing lab attempts yet.</p>
+  {% endif %}
+</section>
 {% endblock %}

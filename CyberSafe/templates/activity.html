@@ -1,29 +1,401 @@
 {% extends "base.html" %}
 {% block title %}Phishing lab | CyberSafe{% endblock %}
+{% block head %}
+<style>
+  .lab-shell { max-width:760px; margin:auto; }
+  .difficulty-row,.lab-actions { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+  .difficulty-row { margin:20px 0; }
+  .difficulty-row label { display:flex; align-items:center; gap:8px; color:#d5dce6; }
+  .difficulty-row select { min-height:42px; padding:8px 12px; border:1px solid #303948; border-radius:10px; background:#0c111a; color:#f7f9fc; font:inherit; }
+  .lab-progress { margin:22px 0; }
+  .lab-progress-row { display:flex; justify-content:space-between; gap:12px; color:#c3ccd8; }
+  progress { width:100%; height:12px; accent-color:#4b9bf0; }
+  .message-card { margin:18px 0; padding:20px; border:1px solid #303948; border-radius:16px; background:#10151f; overflow-wrap:anywhere; }
+  .message-meta { display:grid; grid-template-columns:90px 1fr; gap:8px 12px; color:#c3ccd8; }
+  .message-meta strong { color:#f4f7fb; }
+  .message-body { margin-top:18px; white-space:pre-wrap; line-height:1.75; color:#e0e6ef; }
+  .message-kind { margin:0 0 12px; color:#91c6fa; font-size:.8rem; font-weight:750; letter-spacing:.08em; text-transform:uppercase; }
+  .sms-bubble,.chat-bubble,.poster,.mock-page { margin-top:18px; padding:16px; border-radius:14px; background:#0c111a; color:#e0e6ef; line-height:1.7; }
+  .chat-bubble { border-left:3px solid #8bc6ff; }
+  .browser-bar { padding:10px 12px; border-radius:10px 10px 0 0; background:#252e3a; color:#d5dce6; overflow-wrap:anywhere; }
+  .mock-page { margin-top:0; border-radius:0 0 10px 10px; }
+  .mock-input { display:block; width:100%; margin:8px 0; min-height:38px; padding:8px; border:1px solid #394658; border-radius:7px; background:#141b25; color:#9ca8b7; }
+  .inert-link { color:#8bc6ff; text-decoration:underline dotted; overflow-wrap:anywhere; }
+  .inspect-button { margin-top:12px; }
+  .inspection { margin-top:12px; padding:12px; border:1px solid #596b83; border-radius:10px; color:#d5dce6; overflow-wrap:anywhere; }
+  .question { margin:22px 0; padding:18px; border:1px solid #28313f; border-radius:15px; background:#10151f; }
+  .choice-list { display:grid; gap:10px; margin-top:14px; }
+  .choice-card { display:flex; align-items:flex-start; gap:12px; min-height:48px; padding:12px 14px; border:1px solid #394658; border-radius:12px; background:#0c111a; color:#e2e8f0; cursor:pointer; line-height:1.5; }
+  .choice-card.is-selected { border-color:#4b9bf0; background:#142236; }
+  .choice-card:focus-within { outline:3px solid #75b8ff; outline-offset:2px; }
+  .choice-card input { flex:0 0 auto; width:18px; height:18px; margin:2px 0 0; accent-color:#75b8ff; }
+  .result-card { margin-top:18px; padding:18px; border:1px solid #3b536d; border-radius:14px; background:#101a27; }
+  .result-card h2 { margin-top:0; }
+  .result-card.correct { border-color:#315d4a; }
+  .result-card.incorrect { border-color:#70404a; }
+  .result-card li { margin:7px 0; color:#c3ccd8; line-height:1.55; }
+  .missed-flag { color:#ffb6bb !important; }
+  .found-flag { color:#b9edcb !important; }
+  .error-message { color:#ffb6bb; }
+  @media(max-width:600px) {
+    .message-card,.question,.result-card { padding:15px; }
+    .message-meta { grid-template-columns:1fr; gap:3px; }
+    .message-meta strong:not(:first-child) { margin-top:9px; }
+    .lab-actions > button,.lab-actions > a { flex:1 1 100%; }
+  }
+</style>
+{% endblock %}
 {% block content %}
-<article class="narrow">
-  <span class="eyebrow">Mini activity</span><h1>Spot the phishing clues.</h1>
-  <p class="lead">Review this fictional message and choose a safe next step.</p>
-  <section class="panel section" aria-label="Example suspicious message">
-    <p><strong>From:</strong> School Account Support &lt;security-alert@example.invalid&gt;</p>
-    <p><strong>Subject:</strong> FINAL WARNING: account closes in 10 minutes</p>
-    <p>Your account will be deleted unless you sign in at school-verify.example.invalid. Do not contact the school; keep this confidential.</p>
-  </section>
-  <fieldset class="panel section"><legend>What should you do?</legend>
-    <label class="field"><span><input type="radio" name="choice" value="unsafe"> Click the link immediately</span></label>
-    <label class="field"><span><input type="radio" name="choice" value="safe"> Visit the official school site or contact IT using a known channel</span></label>
-    <button id="check-choice" type="button">Check my choice</button><p id="feedback" aria-live="polite"></p>
-  </fieldset>
+<article class="lab-shell">
+  <span class="eyebrow">Interactive practice</span>
+  <h1>Phishing lab</h1>
+  <p class="lead">Practice spotting suspicious messages and choosing safe next steps. Every address and destination in this lab is fictional; links never open a website.</p>
+  <form id="lab-start" class="panel">
+    <label class="field" for="difficulty">Choose difficulty</label>
+    <div class="difficulty-row">
+      <select id="difficulty" name="difficulty">
+        <option value="easy">Easy</option>
+        <option value="medium" selected>Medium</option>
+        <option value="hard">Hard</option>
+      </select>
+      <button type="submit">Start 12-scenario lab</button>
+    </div>
+  </form>
+  <p id="lab-error" class="error-message" role="alert" hidden></p>
+  <section id="lab-stage" aria-live="polite" aria-atomic="false"></section>
 </article>
+<input id="lab-csrf" type="hidden" value="{{ csrf_token }}">
 {% endblock %}
 {% block scripts %}
 <script>
-document.getElementById("check-choice").addEventListener("click",()=>{
- const selected=document.querySelector('input[name="choice"]:checked'), feedback=document.getElementById("feedback");
- if(!selected){feedback.textContent="Choose an answer first.";return;}
- feedback.textContent=selected.value==="safe"
- ? "Correct. The urgency, threat, secrecy request, and unfamiliar domain are warning signs."
- : "Not quite. Urgency, a threat, secrecy, and an unfamiliar domain are warning signs. Verify independently.";
-});
+(() => {
+  const startForm = document.getElementById("lab-start");
+  const stage = document.getElementById("lab-stage");
+  const errorBox = document.getElementById("lab-error");
+  const csrfToken = document.getElementById("lab-csrf").value;
+  let current = null;
+  let mistakes = [];
+  let attemptDifficulty = "medium";
+
+  function node(tag, className, text) {
+    const element = document.createElement(tag);
+    if (className) element.className = className;
+    if (text !== undefined) element.textContent = text;
+    return element;
+  }
+
+  function clearError() {
+    errorBox.hidden = true;
+    errorBox.textContent = "";
+  }
+
+  function showError(message) {
+    errorBox.textContent = message;
+    errorBox.hidden = false;
+  }
+
+  async function request(url, values, method = "POST") {
+    const options = { method, headers: { "Accept": "application/json" }, credentials: "same-origin" };
+    if (method === "POST") {
+      const body = new URLSearchParams({ csrf_token: csrfToken, ...(values || {}) });
+      options.headers["Content-Type"] = "application/x-www-form-urlencoded;charset=UTF-8";
+      options.body = body;
+    }
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      const message = await response.text();
+      throw new Error(message || `Request failed (${response.status}).`);
+    }
+    return response.json();
+  }
+
+  function addText(parent, tag, className, text) {
+    const element = node(tag, className, text);
+    parent.append(element);
+    return element;
+  }
+
+  function renderMessage(scenario) {
+    const card = node("section", "message-card");
+    card.setAttribute("aria-label", `${scenario.type} message example`);
+    addText(card, "p", "message-kind", {
+      email: "Email message",
+      sms: "Text message",
+      chat: "Social message",
+      login: "Static login-page preview",
+      qr: "QR code or poster description"
+    }[scenario.type] || "Message");
+
+    if (scenario.type === "login") {
+      addText(card, "div", "browser-bar", `Address bar (inert): ${scenario.sender}`);
+      const mock = node("div", "mock-page");
+      addText(mock, "strong", "", scenario.subject);
+      addText(mock, "p", "message-body", scenario.body);
+      const username = node("input", "mock-input");
+      username.disabled = true;
+      username.setAttribute("aria-label", "Disabled username field in static example");
+      username.placeholder = "Username (disabled example)";
+      const password = node("input", "mock-input");
+      password.disabled = true;
+      password.type = "password";
+      password.setAttribute("aria-label", "Disabled password field in static example");
+      password.placeholder = "Password (disabled example)";
+      const button = node("button", "secondary", "Sign in (disabled example)");
+      button.type = "button";
+      button.disabled = true;
+      mock.append(username, password, button);
+      card.append(mock);
+    } else if (scenario.type === "sms") {
+      const bubble = node("div", "sms-bubble");
+      addText(bubble, "strong", "", scenario.sender);
+      addText(bubble, "p", "message-body", scenario.body);
+      card.append(bubble);
+    } else if (scenario.type === "chat") {
+      const bubble = node("div", "chat-bubble");
+      addText(bubble, "strong", "", scenario.sender);
+      addText(bubble, "p", "message-body", scenario.body);
+      card.append(bubble);
+    } else if (scenario.type === "qr") {
+      addText(card, "p", "message-meta", scenario.sender);
+      addText(card, "p", "poster", scenario.body);
+    } else {
+      const meta = node("div", "message-meta");
+      addText(meta, "strong", "", "From");
+      addText(meta, "span", "", scenario.sender);
+      addText(meta, "strong", "", "Subject");
+      addText(meta, "span", "", scenario.subject);
+      card.append(meta);
+      addText(card, "p", "message-body", scenario.body);
+    }
+
+    if (scenario.link_text) {
+      const label = node("p", "message-body");
+      label.append(document.createTextNode("Link text (inert): "));
+      label.append(node("span", "inert-link", scenario.link_text));
+      card.append(label);
+    }
+    return card;
+  }
+
+  function makeChoice(text, name, value, type = "radio") {
+    const label = node("label", "choice-card");
+    const input = document.createElement("input");
+    input.type = type;
+    input.name = name;
+    input.value = value;
+    input.addEventListener("change", () => label.classList.toggle("is-selected", input.checked));
+    label.append(input, document.createTextNode(text));
+    return label;
+  }
+
+  async function inspectLink(button, destinationBox) {
+    if (button.dataset.inspected === "true") return;
+    button.disabled = true;
+    try {
+      const result = await request("/activity/phishing/inspect", {});
+      destinationBox.replaceChildren();
+      addText(destinationBox, "strong", "", "Destination revealed (inert): ");
+      destinationBox.append(document.createTextNode(result.destination || "No destination provided."));
+      destinationBox.hidden = false;
+      button.dataset.inspected = "true";
+    } catch (error) {
+      showError("Could not inspect this link. Please try again.");
+      button.disabled = false;
+    }
+  }
+
+  function renderQuestion(scenario) {
+    const section = node("fieldset", "question");
+    const legend = node("legend", "", scenario.prompt);
+    section.append(legend);
+    if (scenario.interaction_type === "spot") {
+      addText(section, "p", "small", "Select every suspicious detail. The labels describe the detail; decide whether it is a red flag.");
+      const choices = node("div", "choice-list");
+      scenario.clue_parts.forEach(part => choices.append(makeChoice(part.text, "parts", part.id, "checkbox")));
+      section.append(choices);
+    } else {
+      if (scenario.interaction_type === "hover" && scenario.has_inspectable_link) {
+        const inspect = node("button", "secondary inspect-button", "Hover or tap to inspect the link destination");
+        inspect.type = "button";
+        const destination = node("div", "inspection", "");
+        destination.hidden = true;
+        inspect.addEventListener("pointerenter", () => inspectLink(inspect, destination));
+        inspect.addEventListener("click", () => inspectLink(inspect, destination));
+        section.append(inspect, destination);
+      }
+      const choices = node("div", "choice-list");
+      scenario.options.forEach(option => choices.append(makeChoice(option, "answer", option)));
+      section.append(choices);
+    }
+    const submit = node("button", "", "Check my answer");
+    submit.type = "button";
+    submit.dataset.answerSubmit = "true";
+    submit.addEventListener("click", () => submitAnswer(section, scenario));
+    section.append(submit);
+    return section;
+  }
+
+  function renderProgress(number, total) {
+    const wrapper = node("div", "lab-progress");
+    const row = node("div", "lab-progress-row");
+    addText(row, "strong", "", `Scenario ${number} of ${total}`);
+    addText(row, "span", "", `${Math.round(number * 100 / total)}%`);
+    const progress = document.createElement("progress");
+    progress.max = total;
+    progress.value = number;
+    progress.setAttribute("aria-label", `Scenario ${number} of ${total}`);
+    wrapper.append(row, progress);
+    return wrapper;
+  }
+
+  function renderScenario(payload) {
+    current = payload.scenario;
+    stage.replaceChildren();
+    stage.append(renderProgress(payload.number, payload.total));
+    stage.append(renderMessage(current));
+    stage.append(renderQuestion(current));
+  }
+
+  function renderFeedback(result) {
+    const card = node("section", `result-card ${result.correct ? "correct" : "incorrect"}`);
+    card.setAttribute("aria-live", "polite");
+    const status = result.correct ? "Correct" : "Not quite";
+    addText(card, "h2", "", `${status} · Scenario ${result.number} of ${result.total}`);
+    if (result.interaction_type === "spot") {
+      addText(card, "p", "", `You found ${result.found_count} of ${result.red_flag_count} red flags.`);
+    }
+    addText(card, "p", "", result.explanation);
+    addText(card, "h3", "", "Red flags in this message");
+    const list = node("ul", "");
+    result.red_flags.forEach(flag => {
+      const found = result.found_red_flags.includes(flag);
+      const item = node("li", result.interaction_type === "spot" ? (found ? "found-flag" : "missed-flag") : "", `${flag}${result.interaction_type === "spot" ? (found ? " — found" : " — missed") : ""}`);
+      list.append(item);
+    });
+    if (!result.red_flags.length) addText(card, "p", "small", "No specific red flags; verify messages independently when something feels unusual.");
+    else card.append(list);
+    return card;
+  }
+
+  function renderFinal(finalResult) {
+    const card = node("section", "result-card");
+    const heading = addText(card, "h2", "", "Lab complete");
+    heading.id = "final-heading";
+    card.setAttribute("aria-labelledby", "final-heading");
+    addText(card, "p", "", `Score: ${finalResult.score}/${finalResult.total} · ${finalResult.percentage}%`);
+    addText(card, "p", "", `Badge: ${finalResult.badge} · ${finalResult.difficulty} difficulty`);
+    const actions = node("div", "lab-actions");
+    const retry = node("button", "secondary", "Try again");
+    retry.type = "button";
+    retry.addEventListener("click", () => startAttempt(attemptDifficulty));
+    const review = node("button", "secondary", "Review mistakes");
+    review.type = "button";
+    review.disabled = mistakes.length === 0;
+    review.addEventListener("click", renderMistakes);
+    actions.append(retry, review);
+    card.append(actions);
+    stage.append(card);
+  }
+
+  function renderMistakes() {
+    stage.replaceChildren();
+    addText(stage, "h2", "", "Review your mistakes");
+    if (!mistakes.length) {
+      addText(stage, "p", "panel", "No mistakes to review. Great work!");
+      return;
+    }
+    mistakes.forEach((mistake, index) => {
+      const card = node("article", "message-card");
+      addText(card, "p", "message-kind", `Scenario ${index + 1} · ${mistake.scenario.type}`);
+      addText(card, "h3", "", mistake.scenario.subject);
+      addText(card, "p", "message-body", mistake.scenario.body);
+      addText(card, "p", "", mistake.result.explanation);
+      if (mistake.result.red_flags.length) {
+        const list = node("ul", "");
+        mistake.result.red_flags.forEach(flag => addText(list, "li", "", flag));
+        card.append(list);
+      }
+      stage.append(card);
+    });
+    const retry = node("button", "secondary", "Try again");
+    retry.type = "button";
+    retry.addEventListener("click", () => startAttempt(attemptDifficulty));
+    stage.append(retry);
+  }
+
+  async function submitAnswer(question, scenario) {
+    clearError();
+    const values = new URLSearchParams({ csrf_token: csrfToken });
+    if (scenario.interaction_type === "spot") {
+      const selected = [...question.querySelectorAll('input[name="parts"]:checked')];
+      selected.forEach(input => values.append("parts", input.value));
+    } else {
+      const selected = question.querySelector('input[name="answer"]:checked');
+      if (!selected) {
+        showError("Choose an answer before continuing.");
+        return;
+      }
+      values.set("answer", selected.value);
+    }
+    const submit = question.querySelector("[data-answer-submit]");
+    submit.disabled = true;
+    try {
+      const response = await fetch("/activity/phishing/answer", {
+        method: "POST",
+        headers: { "Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+        credentials: "same-origin",
+        body: values
+      });
+      if (!response.ok) throw new Error(`Request failed (${response.status}).`);
+      const result = await response.json();
+      if (!result.correct) mistakes.push({ scenario, result });
+      const feedback = renderFeedback(result);
+      stage.append(feedback);
+      if (result.final) {
+        renderFinal(result.final);
+      } else {
+        const next = node("button", "secondary", "Next scenario");
+        next.type = "button";
+        next.addEventListener("click", loadNextScenario);
+        const actions = node("div", "lab-actions");
+        actions.append(next);
+        feedback.append(actions);
+      }
+      feedback.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (error) {
+      showError("Your answer could not be checked. Please retry.");
+      submit.disabled = false;
+    }
+  }
+
+  async function loadNextScenario() {
+    clearError();
+    try {
+      const payload = await request("/activity/phishing/scenario", null, "GET");
+      renderScenario(payload);
+      stage.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (error) {
+      showError("The next scenario could not be loaded. Please reload the lab and try again.");
+    }
+  }
+
+  async function startAttempt(difficulty) {
+    clearError();
+    attemptDifficulty = difficulty;
+    mistakes = [];
+    try {
+      const payload = await request("/activity/phishing/start", { difficulty });
+      renderScenario(payload);
+      stage.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (error) {
+      showError("The lab could not be started. Please refresh the page and try again.");
+    }
+  }
+
+  startForm.addEventListener("submit", event => {
+    event.preventDefault();
+    startAttempt(document.getElementById("difficulty").value);
+  });
+})();
 </script>
 {% endblock %}

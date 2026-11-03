@@ -10,6 +10,19 @@
 {% block content %}
 <span class="eyebrow">Your learning space</span><h1>Welcome, {{ user.name }}.</h1>
 <p class="lead">{{ completed|length }} of {{ modules|length }} modules completed</p>
+<section class="section">
+  <article class="card">
+    <span class="eyebrow">Phishing lab</span>
+    <h2>Your practice results</h2>
+    {% if phishing_progress.attempts %}
+    <p>Best score: {{ phishing_progress.best_score }}/{{ phishing_progress.best_total }} ({{ phishing_progress.best_percentage|round(0)|int }}%)</p>
+    <p>Attempts: {{ phishing_progress.attempts }}</p>
+    {% else %}
+    <p>No completed lab attempts yet. Try fictional email, text, and chat scenarios.</p>
+    {% endif %}
+    <a class="button secondary" href="{{ url_for('phishing_activity') }}">Open Phishing lab</a>
+  </article>
+</section>
 <section class="section"><h2>Learning progress</h2><div class="grid">
 {% for item in modules %}<article class="card">
   <span class="small">{{ "Quiz completed" if item.id in completed else "Quiz not completed yet" }} · 2 pages · 6 min read</span>

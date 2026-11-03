@@ -2,6 +2,7 @@ import hmac
 import html
 import json
 import os
+import random
 import re
 import secrets
 import sqlite3
@@ -15,9 +16,10 @@ from markupsafe import Markup
 from urllib.parse import unquote, urlsplit
 
 import click
-from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for
+from flask import Flask, abort, flash, g, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 from lesson_seeds import LESSON_PAGES
+from phishing_seeds import PHISHING_SCENARIOS
 
 try:
     from dotenv import load_dotenv
@@ -261,6 +263,33 @@ def initialize_database(database=DATABASE):
                     completed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     PRIMARY KEY(user_id, module_id)
                 );
+                CREATE TABLE IF NOT EXISTS phishing_scenarios (
+                    id INTEGER PRIMARY KEY,
+                    type TEXT NOT NULL CHECK(type IN ('email','sms','chat','login','qr')),
+                    difficulty TEXT NOT NULL CHECK(difficulty IN ('easy','medium','hard')),
+                    sender TEXT NOT NULL,
+                    subject TEXT NOT NULL,
+                    body TEXT NOT NULL,
+                    is_phishing INTEGER NOT NULL CHECK(is_phishing IN (0,1)),
+                    red_flags TEXT NOT NULL,
+                    explanation TEXT NOT NULL,
+                    correct_action TEXT NOT NULL,
+                    interaction_type TEXT NOT NULL DEFAULT 'classify'
+                        CHECK(interaction_type IN ('spot','classify','action','hover')),
+                    prompt TEXT NOT NULL DEFAULT 'Phishing or legitimate?',
+                    options TEXT NOT NULL DEFAULT '[]',
+                    clue_parts TEXT NOT NULL DEFAULT '[]',
+                    link_text TEXT NOT NULL DEFAULT '',
+                    link_destination TEXT NOT NULL DEFAULT ''
+                );
+                CREATE TABLE IF NOT EXISTS phishing_attempts (
+                    id INTEGER PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    score INTEGER NOT NULL,
+                    total INTEGER NOT NULL,
+                    difficulty TEXT NOT NULL CHECK(difficulty IN ('easy','medium','hard')),
+                    taken_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
             """)
             columns = {row["name"] for row in db.execute("PRAGMA table_info(users)")}
             if "role" not in columns:
@@ -291,6 +320,34 @@ def initialize_database(database=DATABASE):
                                 for page_number, page in enumerate(pages, start=1)
                             ],
                         )
+            if db.execute("SELECT COUNT(*) FROM phishing_scenarios").fetchone()[0] == 0:
+                db.executemany(
+                        """INSERT INTO phishing_scenarios
+                           (type,difficulty,sender,subject,body,is_phishing,red_flags,
+                            explanation,correct_action,interaction_type,prompt,options,
+                            clue_parts,link_text,link_destination)
+                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        [
+                            (
+                                scenario["type"],
+                                scenario["difficulty"],
+                                scenario["sender"],
+                                scenario["subject"],
+                                scenario["body"],
+                                int(scenario["is_phishing"]),
+                                json.dumps(scenario["red_flags"]),
+                                scenario["explanation"],
+                                scenario["correct_action"],
+                                scenario["interaction_type"],
+                                scenario["prompt"],
+                                json.dumps(scenario["options"]),
+                                json.dumps(scenario["clue_parts"]),
+                                scenario["link_text"],
+                                scenario["link_destination"],
+                            )
+                            for scenario in PHISHING_SCENARIOS
+                        ],
+                )
             if db.execute("SELECT COUNT(*) FROM tips").fetchone()[0] == 0:
                 db.executemany("INSERT INTO tips (category,content) VALUES (?,?)", TIPS)
             admin_email = os.environ.get("CYBERSAFE_ADMIN_EMAIL", "").strip().lower()
@@ -610,6 +667,190 @@ def create_app():
     def phishing_activity():
         return render_template("activity.html")
 
+    def phishing_scenario_payload(scenario_id):
+        scenario = db().execute(
+            "SELECT * FROM phishing_scenarios WHERE id=?", (scenario_id,)
+        ).fetchone()
+        if scenario is None:
+            abort(404)
+        parts = (
+            json.loads(scenario["clue_parts"])
+            if scenario["interaction_type"] == "spot"
+            else []
+        )
+        part_map = {}
+        public_parts = []
+        for part in parts:
+            part_id = secrets.token_urlsafe(9)
+            part_map[part_id] = part["label"]
+            public_parts.append({
+                "id": part_id,
+                "label": part["label"],
+                "text": part["text"],
+            })
+        random.shuffle(public_parts)
+        session["phishing_part_map"] = part_map
+        if scenario["interaction_type"] == "action":
+            options = json.loads(scenario["options"])
+        else:
+            options = ["Phishing", "Legitimate"]
+        random.shuffle(options)
+        return {
+            "id": scenario["id"],
+            "type": scenario["type"],
+            "difficulty": scenario["difficulty"],
+            "interaction_type": scenario["interaction_type"],
+            "sender": scenario["sender"],
+            "subject": scenario["subject"],
+            "body": scenario["body"],
+            "prompt": scenario["prompt"],
+            "options": options,
+            "clue_parts": public_parts,
+            "link_text": scenario["link_text"],
+            "has_inspectable_link": bool(scenario["link_text"]),
+        }
+
+    def phishing_current_scenario():
+        attempt = session.get("phishing_lab")
+        if not attempt or attempt.get("finished"):
+            abort(409, "Start a new phishing lab attempt first.")
+        if attempt["index"] >= len(attempt["scenario_ids"]):
+            abort(409, "This phishing lab attempt is already complete.")
+        return attempt, attempt["scenario_ids"][attempt["index"]]
+
+    @app.post("/activity/phishing/start")
+    def phishing_lab_start():
+        check_csrf()
+        difficulty = request.form.get("difficulty", "")
+        if difficulty not in {"easy", "medium", "hard"}:
+            abort(400, "Choose an available difficulty.")
+        rows = db().execute(
+            "SELECT id,difficulty FROM phishing_scenarios ORDER BY id"
+        ).fetchall()
+        if not rows:
+            abort(503, "Phishing lab scenarios are not available.")
+        scenario_count = min(12, len(rows))
+        difficulty_rows = [row for row in rows if row["difficulty"] == difficulty]
+        selected = random.sample(difficulty_rows, min(len(difficulty_rows), scenario_count))
+        remaining = [row for row in rows if row["id"] not in {item["id"] for item in selected}]
+        selected.extend(random.sample(remaining, scenario_count - len(selected)))
+        random.shuffle(selected)
+        session["phishing_lab"] = {
+            "scenario_ids": [row["id"] for row in selected],
+            "index": 0,
+            "score": 0,
+            "difficulty": difficulty,
+        }
+        return jsonify(
+            scenario=phishing_scenario_payload(selected[0]["id"]),
+            number=1,
+            total=scenario_count,
+        )
+
+    @app.get("/activity/phishing/scenario")
+    def phishing_lab_scenario():
+        attempt, scenario_id = phishing_current_scenario()
+        return jsonify(
+            scenario=phishing_scenario_payload(scenario_id),
+            number=attempt["index"] + 1,
+            total=len(attempt["scenario_ids"]),
+        )
+
+    @app.post("/activity/phishing/inspect")
+    def phishing_lab_inspect():
+        check_csrf()
+        _attempt, scenario_id = phishing_current_scenario()
+        scenario = db().execute(
+            "SELECT link_text,link_destination FROM phishing_scenarios WHERE id=?",
+            (scenario_id,),
+        ).fetchone()
+        if scenario is None or not scenario["link_text"]:
+            abort(400, "This scenario has no link to inspect.")
+        return jsonify(text=scenario["link_text"], destination=scenario["link_destination"])
+
+    @app.post("/activity/phishing/answer")
+    def phishing_lab_answer():
+        check_csrf()
+        attempt, scenario_id = phishing_current_scenario()
+        scenario = db().execute(
+            "SELECT * FROM phishing_scenarios WHERE id=?", (scenario_id,)
+        ).fetchone()
+        if scenario is None:
+            abort(404)
+
+        flags = json.loads(scenario["red_flags"])
+        if scenario["interaction_type"] == "spot":
+            part_map = session.get("phishing_part_map", {})
+            selected_ids = request.form.getlist("parts")
+            if len(selected_ids) != len(set(selected_ids)) or any(
+                item not in part_map for item in selected_ids
+            ):
+                abort(400, "The selected message details are invalid.")
+            selected_labels = {part_map[item] for item in selected_ids}
+            correct = selected_labels == set(flags)
+            found = [flag for flag in flags if flag in selected_labels]
+            missed = [flag for flag in flags if flag not in selected_labels]
+        else:
+            answer = request.form.get("answer", "").strip()
+            options = (
+                json.loads(scenario["options"])
+                if scenario["interaction_type"] == "action"
+                else ["Phishing", "Legitimate"]
+            )
+            if answer not in options:
+                abort(400, "Choose one of the available answers.")
+            if scenario["interaction_type"] == "action":
+                correct = answer == scenario["correct_action"]
+            else:
+                correct = (answer == "Phishing") == bool(scenario["is_phishing"])
+            found = []
+            missed = list(flags)
+
+        attempt["score"] += int(correct)
+        attempt["index"] += 1
+        session["phishing_lab"] = attempt
+        completed = attempt["index"] == len(attempt["scenario_ids"])
+        feedback = {
+            "correct": correct,
+            "explanation": scenario["explanation"],
+            "red_flags": flags,
+            "found_red_flags": found,
+            "missed_red_flags": missed,
+            "found_count": len(found),
+            "red_flag_count": len(flags),
+            "interaction_type": scenario["interaction_type"],
+            "number": attempt["index"],
+            "total": len(attempt["scenario_ids"]),
+        }
+        if completed:
+            score = attempt["score"]
+            total = len(attempt["scenario_ids"])
+            percentage = round(score * 100 / total)
+            badge = "Phishing Expert" if percentage >= 80 else "Alert" if percentage >= 50 else "Beginner"
+            account = user()
+            db().execute(
+                """INSERT INTO phishing_attempts (user_id,score,total,difficulty,taken_at)
+                   VALUES (?,?,?,?,?)""",
+                (
+                    account["id"] if account else None,
+                    score,
+                    total,
+                    attempt["difficulty"],
+                    time.strftime("%Y-%m-%d %H:%M:%S"),
+                ),
+            )
+            db().commit()
+            attempt["finished"] = True
+            session["phishing_lab"] = attempt
+            feedback["final"] = {
+                "score": score,
+                "total": total,
+                "percentage": percentage,
+                "badge": badge,
+                "difficulty": attempt["difficulty"],
+            }
+        return jsonify(feedback)
+
     @app.get("/dashboard")
     @login_required
     def dashboard():
@@ -632,9 +873,15 @@ def create_app():
         module_items = [module_data(row) for row in rows]
         for item in module_items:
             item["latest_score"] = latest_scores.get(item["id"])
+        phishing_progress = db().execute(
+            """SELECT COUNT(*) AS attempts,COALESCE(MAX(score * 100.0 / total),0) AS best_percentage,
+                      COALESCE(MAX(score),0) AS best_score,COALESCE(MAX(total),0) AS best_total
+               FROM phishing_attempts WHERE user_id=?""",
+            (account["id"],),
+        ).fetchone()
         return render_template("dashboard.html", user=account, scores=scores,
                                completed=done, lessons_read=lessons_read,
-                               modules=module_items)
+                               modules=module_items, phishing_progress=phishing_progress)
 
     @app.route("/admin/users", methods=["GET"])
     def admin_users():
@@ -793,6 +1040,13 @@ def create_app():
                 LIMIT ? OFFSET ?""",
             params + [per_page, offset],
         ).fetchall()
+        phishing_attempts = connection.execute(
+            """SELECT pa.score,pa.total,pa.difficulty,pa.taken_at,
+                      u.name AS student_name,u.email AS student_email
+               FROM phishing_attempts pa
+               LEFT JOIN users u ON u.id=pa.user_id
+               ORDER BY pa.taken_at DESC,pa.id DESC LIMIT 20"""
+        ).fetchall()
         modules = connection.execute("SELECT id, slug, title FROM modules ORDER BY title").fetchall()
 
         return render_template(
@@ -809,6 +1063,7 @@ def create_app():
             search=search,
             date_start=date_start,
             date_end=date_end,
+            phishing_attempts=phishing_attempts,
             csrf_token=csrf_token(),
         )
 
@@ -885,9 +1140,9 @@ def create_app():
 
     @app.route("/admin", methods=["GET", "POST"])
     def admin():
-        denied = admin_required()
-        if denied:
-            return denied
+        account = user()
+        if account is None or account["role"] != "admin":
+            abort(403)
         if request.method == "POST":
             check_csrf()
             action = request.form.get("action", "")
@@ -948,6 +1203,93 @@ def create_app():
                         )
                         db().commit()
                         flash("Module saved.", "success")
+                elif action == "phishing_scenario_save":
+                    scenario_id = request.form.get("id", "").strip()
+                    scenario_type = request.form.get("type", "").strip()
+                    difficulty = request.form.get("difficulty", "").strip()
+                    interaction_type = request.form.get("interaction_type", "").strip()
+                    sender = request.form.get("sender", "").strip()
+                    subject = request.form.get("subject", "").strip()
+                    body = request.form.get("body", "").strip()
+                    is_phishing = request.form.get("is_phishing", "")
+                    red_flags = [line.strip() for line in request.form.get("red_flags", "").splitlines() if line.strip()]
+                    explanation = request.form.get("explanation", "").strip()
+                    correct_action = request.form.get("correct_action", "").strip()
+                    prompt = request.form.get("prompt", "").strip()
+                    options = [line.strip() for line in request.form.get("options", "").splitlines() if line.strip()]
+                    clue_parts = []
+                    for line in request.form.get("clue_parts", "").splitlines():
+                        if line.strip():
+                            label, separator, text = line.partition("|")
+                            if not separator or not label.strip() or not text.strip():
+                                clue_parts = []
+                                break
+                            clue_parts.append({"label": label.strip(), "text": text.strip()})
+                    link_text = request.form.get("link_text", "").strip()
+                    link_destination = request.form.get("link_destination", "").strip()
+                    domains = re.findall(
+                        r"(?i)\b(?:[a-z0-9-]+\.)+[a-z]{2,}\b",
+                        " ".join((sender, subject, body, link_text, link_destination))
+                        + " "
+                        + " ".join(part["text"] for part in clue_parts),
+                    )
+                    labels = [part["label"] for part in clue_parts]
+                    valid = (
+                        scenario_type in {"email", "sms", "chat", "login", "qr"}
+                        and difficulty in {"easy", "medium", "hard"}
+                        and interaction_type in {"spot", "classify", "action", "hover"}
+                        and is_phishing in {"0", "1"}
+                        and all((sender, subject, body, explanation, correct_action, prompt))
+                        and bool(clue_parts)
+                        and len(labels) == len(set(labels))
+                        and set(red_flags).issubset(labels)
+                        and all(domain.lower().endswith(".invalid") for domain in domains)
+                        and (interaction_type != "action" or (len(options) >= 2 and correct_action in options))
+                        and (interaction_type != "hover" or bool(link_text and link_destination))
+                        and (
+                            not link_destination
+                            or re.fullmatch(r"https://[A-Za-z0-9.-]+\.invalid(?:/[^\s]*)?", link_destination)
+                        )
+                    )
+                    if scenario_id and (not scenario_id.isdecimal() or int(scenario_id) < 1):
+                        valid = False
+                    if not valid:
+                        flash("Check the scenario fields, red-flag labels, answer options, and fictional .invalid URLs.", "error")
+                    else:
+                        values = (
+                            scenario_type, difficulty, sender, subject, body, int(is_phishing),
+                            json.dumps(red_flags), explanation, correct_action, interaction_type,
+                            prompt, json.dumps(options), json.dumps(clue_parts), link_text,
+                            link_destination,
+                        )
+                        if scenario_id:
+                            db().execute(
+                                """UPDATE phishing_scenarios SET
+                                   type=?,difficulty=?,sender=?,subject=?,body=?,is_phishing=?,
+                                   red_flags=?,explanation=?,correct_action=?,interaction_type=?,
+                                   prompt=?,options=?,clue_parts=?,link_text=?,link_destination=?
+                                   WHERE id=?""",
+                                values + (scenario_id,),
+                            )
+                        else:
+                            db().execute(
+                                """INSERT INTO phishing_scenarios
+                                   (type,difficulty,sender,subject,body,is_phishing,red_flags,
+                                    explanation,correct_action,interaction_type,prompt,options,
+                                    clue_parts,link_text,link_destination)
+                                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                values,
+                            )
+                        db().commit()
+                        flash("Phishing lab scenario saved.", "success")
+                elif action == "phishing_scenario_delete":
+                    scenario_id = request.form.get("id", "").strip()
+                    if not scenario_id.isdecimal() or int(scenario_id) < 1:
+                        flash("The scenario id is invalid.", "error")
+                    else:
+                        db().execute("DELETE FROM phishing_scenarios WHERE id=?", (scenario_id,))
+                        db().commit()
+                        flash("Phishing lab scenario deleted.", "success")
                 elif action == "module_delete":
                     db().execute("DELETE FROM modules WHERE id=?", (request.form.get("id", ""),))
                     db().commit()
@@ -1019,7 +1361,18 @@ def create_app():
         questions = []
         for q in db().execute("SELECT questions.*,modules.title AS module_title FROM questions JOIN modules ON modules.id=questions.module_id ORDER BY modules.title,questions.id"):
             questions.append(dict(q, options=json.loads(q["options"])))
-        return render_template("admin.html", modules=modules, users=users, tips=tips, questions=questions)
+        phishing_scenarios = []
+        for scenario in db().execute("SELECT * FROM phishing_scenarios ORDER BY type,difficulty,id"):
+            phishing_scenarios.append(dict(
+                scenario,
+                red_flags=json.loads(scenario["red_flags"]),
+                options=json.loads(scenario["options"]),
+                clue_parts=json.loads(scenario["clue_parts"]),
+            ))
+        return render_template(
+            "admin.html", modules=modules, users=users, tips=tips, questions=questions,
+            phishing_scenarios=phishing_scenarios,
+        )
 
     @app.errorhandler(403)
     def forbidden(_error):
