@@ -27,12 +27,17 @@
   .choice-list { display:grid; gap:10px; margin-top:14px; }
   .choice-card { display:flex; align-items:flex-start; gap:12px; min-height:48px; padding:12px 14px; border:1px solid #394658; border-radius:12px; background:#0c111a; color:#e2e8f0; cursor:pointer; line-height:1.5; }
   .choice-card.is-selected { border-color:#4b9bf0; background:#142236; }
+  .choice-card.is-correct { border-color:#31865a; background:#10251c; }
+  .choice-card.is-wrong { border-color:#9c4a52; background:#2b171b; }
   .choice-card:focus-within { outline:3px solid #75b8ff; outline-offset:2px; }
   .choice-card input { flex:0 0 auto; width:18px; height:18px; margin:2px 0 0; accent-color:#75b8ff; }
+  .choice-result { margin-left:auto; padding-left:8px; font-size:.85rem; font-weight:750; white-space:nowrap; }
   .result-card { margin-top:18px; padding:18px; border:1px solid #3b536d; border-radius:14px; background:#101a27; }
   .result-card h2 { margin-top:0; }
   .result-card.correct { border-color:#315d4a; }
   .result-card.incorrect { border-color:#70404a; }
+  .result-card.correct h2,.choice-card.is-correct .choice-result { color:#b9edcb; }
+  .result-card.incorrect h2,.choice-card.is-wrong .choice-result { color:#ffb6bb; }
   .result-card li { margin:7px 0; color:#c3ccd8; line-height:1.55; }
   .missed-flag { color:#ffb6bb !important; }
   .found-flag { color:#b9edcb !important; }
@@ -224,7 +229,7 @@
         section.append(inspect, destination);
       }
       const choices = node("div", "choice-list");
-      scenario.options.forEach(option => choices.append(makeChoice(option, "answer", option)));
+      scenario.options.forEach(option => choices.append(makeChoice(option.text, "answer", option.id)));
       section.append(choices);
     }
     const submit = node("button", "", "Check my answer");
@@ -235,11 +240,11 @@
     return section;
   }
 
-  function renderProgress(number, total) {
+  function renderProgress(number, total, score = 0) {
     const wrapper = node("div", "lab-progress");
     const row = node("div", "lab-progress-row");
     addText(row, "strong", "", `Scenario ${number} of ${total}`);
-    addText(row, "span", "", `${Math.round(number * 100 / total)}%`);
+    addText(row, "span", "score-value", `Score: ${score}/${total}`);
     const progress = document.createElement("progress");
     progress.max = total;
     progress.value = number;
@@ -248,10 +253,17 @@
     return wrapper;
   }
 
+  function updateProgress(number, total, score) {
+    const progress = stage.querySelector(".lab-progress progress");
+    const scoreValue = stage.querySelector(".score-value");
+    if (progress) progress.value = number;
+    if (scoreValue) scoreValue.textContent = `Score: ${score}/${total}`;
+  }
+
   function renderScenario(payload) {
     current = payload.scenario;
     stage.replaceChildren();
-    stage.append(renderProgress(payload.number, payload.total));
+    stage.append(renderProgress(payload.number, payload.total, payload.score));
     stage.append(renderMessage(current));
     stage.append(renderQuestion(current));
   }
@@ -259,8 +271,11 @@
   function renderFeedback(result) {
     const card = node("section", `result-card ${result.correct ? "correct" : "incorrect"}`);
     card.setAttribute("aria-live", "polite");
-    const status = result.correct ? "Correct" : "Not quite";
+    const status = result.correct ? "✓ Correct!" : "✗ Not quite.";
     addText(card, "h2", "", `${status} · Scenario ${result.number} of ${result.total}`);
+    if (!result.correct) {
+      addText(card, "p", "", `The correct answer is: ${result.correct_option_text.join(", ")}`);
+    }
     if (result.interaction_type === "spot") {
       addText(card, "p", "", `You found ${result.found_count} of ${result.red_flag_count} red flags.`);
     }
@@ -275,6 +290,28 @@
     if (!result.red_flags.length) addText(card, "p", "small", "No specific red flags; verify messages independently when something feels unusual.");
     else card.append(list);
     return card;
+  }
+
+  function highlightSubmittedChoices(question, result) {
+    const correctIds = new Set(result.correct_option_ids);
+    const selectedIds = new Set(result.selected_option_ids);
+    question.querySelectorAll(".choice-card").forEach(label => {
+      const input = label.querySelector("input");
+      input.disabled = true;
+      const isCorrect = correctIds.has(input.value);
+      const isSelected = selectedIds.has(input.value);
+      if (isCorrect) label.classList.add("is-correct");
+      if (isSelected && !isCorrect) label.classList.add("is-wrong");
+      if (isCorrect || (isSelected && !isCorrect)) {
+        label.append(node(
+          "span",
+          "choice-result",
+          isCorrect
+            ? `✓ Correct answer${isSelected ? " · selected" : ""}`
+            : "✗ Your choice"
+        ));
+      }
+    });
   }
 
   function renderFinal(finalResult) {
@@ -328,11 +365,15 @@
     const values = new URLSearchParams({ csrf_token: csrfToken });
     if (scenario.interaction_type === "spot") {
       const selected = [...question.querySelectorAll('input[name="parts"]:checked')];
+      if (!selected.length) {
+        showError("Please choose an answer first.");
+        return;
+      }
       selected.forEach(input => values.append("parts", input.value));
     } else {
       const selected = question.querySelector('input[name="answer"]:checked');
       if (!selected) {
-        showError("Choose an answer before continuing.");
+        showError("Please choose an answer first.");
         return;
       }
       values.set("answer", selected.value);
@@ -349,18 +390,19 @@
       if (!response.ok) throw new Error(`Request failed (${response.status}).`);
       const result = await response.json();
       if (!result.correct) mistakes.push({ scenario, result });
+      highlightSubmittedChoices(question, result);
+      updateProgress(result.number, result.total, result.score);
       const feedback = renderFeedback(result);
       stage.append(feedback);
-      if (result.final) {
-        renderFinal(result.final);
-      } else {
-        const next = node("button", "secondary", "Next scenario");
-        next.type = "button";
-        next.addEventListener("click", loadNextScenario);
-        const actions = node("div", "lab-actions");
-        actions.append(next);
-        feedback.append(actions);
-      }
+      const next = node("button", "secondary", result.final ? "See results" : "Next scenario");
+      next.type = "button";
+      next.addEventListener("click", () => {
+        if (result.final) renderFinal(result.final);
+        else loadNextScenario();
+      });
+      if (submit.isConnected) submit.replaceWith(next);
+      else question.append(next);
+      next.focus();
       feedback.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (error) {
       showError("Your answer could not be checked. Please retry.");

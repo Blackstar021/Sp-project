@@ -277,6 +277,7 @@ def initialize_database(database=DATABASE):
                     interaction_type TEXT NOT NULL DEFAULT 'classify'
                         CHECK(interaction_type IN ('spot','classify','action','hover')),
                     prompt TEXT NOT NULL DEFAULT 'Phishing or legitimate?',
+                    correct_answer TEXT NOT NULL DEFAULT '0',
                     options TEXT NOT NULL DEFAULT '[]',
                     clue_parts TEXT NOT NULL DEFAULT '[]',
                     link_text TEXT NOT NULL DEFAULT '',
@@ -294,6 +295,30 @@ def initialize_database(database=DATABASE):
             columns = {row["name"] for row in db.execute("PRAGMA table_info(users)")}
             if "role" not in columns:
                 db.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'student'")
+            scenario_columns = {
+                row["name"] for row in db.execute("PRAGMA table_info(phishing_scenarios)")
+            }
+            if "correct_answer" not in scenario_columns:
+                db.execute(
+                    "ALTER TABLE phishing_scenarios ADD COLUMN correct_answer TEXT NOT NULL DEFAULT '0'"
+                )
+                for scenario in db.execute("SELECT * FROM phishing_scenarios"):
+                    if scenario["interaction_type"] == "spot":
+                        flags = set(json.loads(scenario["red_flags"]))
+                        parts = json.loads(scenario["clue_parts"])
+                        answer = [
+                            index for index, part in enumerate(parts)
+                            if part["label"] in flags
+                        ]
+                    elif scenario["interaction_type"] == "action":
+                        options = json.loads(scenario["options"])
+                        answer = options.index(scenario["correct_action"])
+                    else:
+                        answer = 0 if scenario["is_phishing"] else 1
+                    db.execute(
+                        "UPDATE phishing_scenarios SET correct_answer=? WHERE id=?",
+                        (json.dumps(answer), scenario["id"]),
+                    )
             if db.execute("SELECT COUNT(*) FROM modules").fetchone()[0] == 0:
                 for slug, title, summary, lesson, examples, takeaways in MODULES:
                     db.execute(
@@ -324,9 +349,9 @@ def initialize_database(database=DATABASE):
                 db.executemany(
                         """INSERT INTO phishing_scenarios
                            (type,difficulty,sender,subject,body,is_phishing,red_flags,
-                            explanation,correct_action,interaction_type,prompt,options,
+                            explanation,correct_action,interaction_type,prompt,correct_answer,options,
                             clue_parts,link_text,link_destination)
-                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                         [
                             (
                                 scenario["type"],
@@ -340,6 +365,7 @@ def initialize_database(database=DATABASE):
                                 scenario["correct_action"],
                                 scenario["interaction_type"],
                                 scenario["prompt"],
+                                json.dumps(scenario["correct_answer"]),
                                 json.dumps(scenario["options"]),
                                 json.dumps(scenario["clue_parts"]),
                                 scenario["link_text"],
@@ -680,9 +706,9 @@ def create_app():
         )
         part_map = {}
         public_parts = []
-        for part in parts:
+        for index, part in enumerate(parts):
             part_id = secrets.token_urlsafe(9)
-            part_map[part_id] = part["label"]
+            part_map[part_id] = index
             public_parts.append({
                 "id": part_id,
                 "label": part["label"],
@@ -690,10 +716,15 @@ def create_app():
             })
         random.shuffle(public_parts)
         session["phishing_part_map"] = part_map
-        if scenario["interaction_type"] == "action":
-            options = json.loads(scenario["options"])
-        else:
-            options = ["Phishing", "Legitimate"]
+        option_texts = (
+            json.loads(scenario["options"])
+            if scenario["interaction_type"] == "action"
+            else ["Phishing", "Legitimate"]
+        )
+        options = [
+            {"id": str(index), "text": text}
+            for index, text in enumerate(option_texts)
+        ]
         random.shuffle(options)
         return {
             "id": scenario["id"],
@@ -745,6 +776,7 @@ def create_app():
             scenario=phishing_scenario_payload(selected[0]["id"]),
             number=1,
             total=scenario_count,
+            score=0,
         )
 
     @app.get("/activity/phishing/scenario")
@@ -754,6 +786,7 @@ def create_app():
             scenario=phishing_scenario_payload(scenario_id),
             number=attempt["index"] + 1,
             total=len(attempt["scenario_ids"]),
+            score=attempt["score"],
         )
 
     @app.post("/activity/phishing/inspect")
@@ -779,32 +812,47 @@ def create_app():
             abort(404)
 
         flags = json.loads(scenario["red_flags"])
+        correct_answer = json.loads(scenario["correct_answer"])
         if scenario["interaction_type"] == "spot":
             part_map = session.get("phishing_part_map", {})
             selected_ids = request.form.getlist("parts")
+            if not selected_ids:
+                abort(400, "Please choose an answer first.")
             if len(selected_ids) != len(set(selected_ids)) or any(
                 item not in part_map for item in selected_ids
             ):
                 abort(400, "The selected message details are invalid.")
-            selected_labels = {part_map[item] for item in selected_ids}
-            correct = selected_labels == set(flags)
+            selected_indexes = {part_map[item] for item in selected_ids}
+            correct_indexes = set(correct_answer)
+            correct = selected_indexes == correct_indexes
+            selected_labels = {
+                json.loads(scenario["clue_parts"])[index]["label"]
+                for index in selected_indexes
+            }
             found = [flag for flag in flags if flag in selected_labels]
             missed = [flag for flag in flags if flag not in selected_labels]
+            correct_option_ids = [
+                part_id for part_id, index in part_map.items()
+                if index in correct_indexes
+            ]
+            correct_option_text = [
+                json.loads(scenario["clue_parts"])[index]["text"]
+                for index in sorted(correct_indexes)
+            ]
+            selected_option_ids = selected_ids
         else:
             answer = request.form.get("answer", "").strip()
-            options = (
-                json.loads(scenario["options"])
-                if scenario["interaction_type"] == "action"
-                else ["Phishing", "Legitimate"]
-            )
-            if answer not in options:
+            options = json.loads(scenario["options"])
+            if not answer:
+                abort(400, "Please choose an answer first.")
+            if not answer.isdecimal() or int(answer) >= len(options):
                 abort(400, "Choose one of the available answers.")
-            if scenario["interaction_type"] == "action":
-                correct = answer == scenario["correct_action"]
-            else:
-                correct = (answer == "Phishing") == bool(scenario["is_phishing"])
+            correct = int(answer) == correct_answer
             found = []
             missed = list(flags)
+            correct_option_ids = [str(correct_answer)]
+            correct_option_text = [options[correct_answer]]
+            selected_option_ids = [answer]
 
         attempt["score"] += int(correct)
         attempt["index"] += 1
@@ -819,8 +867,12 @@ def create_app():
             "found_count": len(found),
             "red_flag_count": len(flags),
             "interaction_type": scenario["interaction_type"],
+            "correct_option_ids": correct_option_ids,
+            "correct_option_text": correct_option_text,
+            "selected_option_ids": selected_option_ids,
             "number": attempt["index"],
             "total": len(attempt["scenario_ids"]),
+            "score": attempt["score"],
         }
         if completed:
             score = attempt["score"]
@@ -1234,6 +1286,16 @@ def create_app():
                         + " ".join(part["text"] for part in clue_parts),
                     )
                     labels = [part["label"] for part in clue_parts]
+                    answer_options = options if interaction_type == "action" else ["Phishing", "Legitimate"]
+                    if interaction_type == "spot":
+                        correct_answer = [
+                            index for index, part in enumerate(clue_parts)
+                            if part["label"] in red_flags
+                        ]
+                    elif interaction_type == "action":
+                        correct_answer = answer_options.index(correct_action) if correct_action in answer_options else -1
+                    else:
+                        correct_answer = 0 if is_phishing == "1" else 1
                     valid = (
                         scenario_type in {"email", "sms", "chat", "login", "qr"}
                         and difficulty in {"easy", "medium", "hard"}
@@ -1241,6 +1303,7 @@ def create_app():
                         and is_phishing in {"0", "1"}
                         and all((sender, subject, body, explanation, correct_action, prompt))
                         and bool(clue_parts)
+                        and (interaction_type != "spot" or bool(red_flags))
                         and len(labels) == len(set(labels))
                         and set(red_flags).issubset(labels)
                         and all(domain.lower().endswith(".invalid") for domain in domains)
@@ -1259,7 +1322,8 @@ def create_app():
                         values = (
                             scenario_type, difficulty, sender, subject, body, int(is_phishing),
                             json.dumps(red_flags), explanation, correct_action, interaction_type,
-                            prompt, json.dumps(options), json.dumps(clue_parts), link_text,
+                            prompt, json.dumps(correct_answer), json.dumps(answer_options),
+                            json.dumps(clue_parts), link_text,
                             link_destination,
                         )
                         if scenario_id:
@@ -1267,7 +1331,7 @@ def create_app():
                                 """UPDATE phishing_scenarios SET
                                    type=?,difficulty=?,sender=?,subject=?,body=?,is_phishing=?,
                                    red_flags=?,explanation=?,correct_action=?,interaction_type=?,
-                                   prompt=?,options=?,clue_parts=?,link_text=?,link_destination=?
+                                   prompt=?,correct_answer=?,options=?,clue_parts=?,link_text=?,link_destination=?
                                    WHERE id=?""",
                                 values + (scenario_id,),
                             )
@@ -1275,9 +1339,9 @@ def create_app():
                             db().execute(
                                 """INSERT INTO phishing_scenarios
                                    (type,difficulty,sender,subject,body,is_phishing,red_flags,
-                                    explanation,correct_action,interaction_type,prompt,options,
+                                    explanation,correct_action,interaction_type,prompt,correct_answer,options,
                                     clue_parts,link_text,link_destination)
-                                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                                 values,
                             )
                         db().commit()

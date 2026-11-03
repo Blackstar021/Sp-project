@@ -27,6 +27,20 @@ def _scenario(
     link_text="",
     link_destination="",
 ):
+    answer_options = list(options) if interaction_type == "action" else ["Phishing", "Legitimate"]
+    if interaction_type == "spot":
+        correct_answer = [
+            index
+            for index, (label, _text) in enumerate(parts)
+            if label in red_flags
+        ]
+    else:
+        correct_text = (
+            correct_action
+            if interaction_type == "action"
+            else "Phishing" if is_phishing else "Legitimate"
+        )
+        correct_answer = answer_options.index(correct_text)
     return {
         "type": scenario_type,
         "difficulty": difficulty,
@@ -38,8 +52,9 @@ def _scenario(
         "red_flags": list(red_flags),
         "explanation": explanation,
         "correct_action": correct_action,
+        "correct_answer": correct_answer,
         "prompt": prompt,
-        "options": list(options),
+        "options": answer_options,
         "clue_parts": [{"label": label, "text": text} for label, text in parts],
         "link_text": link_text,
         "link_destination": link_destination,
